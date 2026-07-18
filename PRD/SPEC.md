@@ -489,11 +489,11 @@ model Cohortreport {
 
 ### 5.3 ⭐ 降級機制 (Graceful Degradation)
 
-| 故障 | 偵測 | 降級 | 使用者訊息 |
+| 服務 | 情境 (掛掉) | 降級策略 (切換) | 使用者訊息 |
 |---|---|---|---|
-| LLM/外部 provider | timeout/5xx | mock/template/manual | 草稿保留，可稍後重試 |
-| 資料庫 | connection error | local queue/read-only | 暫存位置與同步狀態 |
-| 圖片/檔案 | size/type error | 文字欄位/壓縮 | 指出失敗檔案 |
+| LLM provider | timeout/5xx (掛掉) | 切換到 mock/template | 草稿保留，可稍後重試 |
+| 資料庫 | connection error (掛掉) | 切換到 local queue | 暫存位置與同步狀態 |
+| 圖片儲存 | size/type error (掛掉) | 切換到 文字欄位 | 指出失敗檔案 |
 | Auth | expired session | 重新登入 | 不丟失未送出表單 |
 | 付款 | webhook mismatch | pending entitlement | 人工客服入口 |
 | 排程 | missed heartbeat | 手動 queue | 顯示延遲時間 |
@@ -721,7 +721,7 @@ quadrantChart
 - 語音/圖片功能都有文字替代。
 - 使用者可取消長任務與清除草稿。
 ---
-## 11. ⭐ 市場驗證計畫 (Market Validation Plan)
+## 11. 市場驗證計畫 (Market Validation Plan) (Market Validation Plan)
 
 本計畫由 sweet=6 與競品 Dolyu、Folio、Fresha、JustBook 反推；目的不是證明產品存在，而是證明指定 wedge「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」能產生重複行為與付款。
 ### 11.1 驗證前 3 個關鍵問題
@@ -794,7 +794,7 @@ quadrantChart
 | 錯誤/人工修正 | 可控且下降 | 固定問題 | 造成風險 |
 - **甜蜜點低分規則**：sweet=6 的專案在 No-go 任一項連續兩週成立，標記為 hold/開源，而不是繼續追加功能。
 ---
-## 12. ⭐ 失敗模式 SOP (Failure Mode Playbook)
+## 12. 失敗模式 SOP (Failure Mode Playbook) (Failure Mode Playbook)
 
 ### 12.1 核心輸入不完整
 **症狀**：監控或訪談出現異常。
@@ -946,7 +946,7 @@ quadrantChart
 - 每個 PR 必須附測試、資料風險與 rollback 方式。
 - 若需求違反 §1.5，必須先更新 ADR 與驗證假設。
 ---
-## 15. ⭐ 深度市調報告（Sweet Spot 5 問體檢結果）
+## 15. 深度市調報告 (Sweet Spot 5 問體檢結果)（Sweet Spot 5 問體檢結果）
 
 **本次結論：sweet spot score = 6/10；recommended action = investigate。**
 本專案不因原分析標示 kill 而刪除；依使用者要求，本版將低分結果轉成「先驗證再開發」的窄定位。
@@ -1042,5 +1042,20 @@ quadrantChart
 - 每一個 issue 必須標註假設、證據、AC 與是否涉及 sweet spot。
 - 每週更新 scorecard：核心 job 完成、第二次使用、付款、成本、風險。
 - 若資料與本文件衝突，以最新已核驗的 pilot evidence 更新 ADR，不以想像補齊。
+
+
+
+### 15.13 2026-07-19 二次 sweet spot re-check (Group A second pass)
+
+- **niche**: 療程回流 CRM（可追蹤回訪事件 + 人工核准訊息，非預約/POS）
+- **sweet spot score**: **6/10**（不變，僅做二次確認）
+- **competitors (2026 re-verified)**: Fresha, Dolyu, Folio, StyleSeat
+- **new evidence (2026-07-19 quick check + 來源交叉驗證)**:
+  - Fresha 官網 2026-07 quick check HTTP 200，確認全球預約/美業平台仍活躍，支持不做預約的 ADR
+  - Dolyu/Folio 已成熟是競爭警示；本版用可追蹤回訪事件與人工核准訊息做可量化差異
+  - 原分析明確寫出『需切療程回流 CRM 才甜蜜』；§3.1 不把預約、金流、庫存列入 MVP
+- **action**: investigate（最接近 go）；建議下一輪直接跑 landing + 5 個工作室 pilot
+- **Stage 1.5 smoke test gate** (sweet<5 強制；sweet>=5 強烈建議): 5 訪談 → 社群 smoke → landing page smoke → 才決定 go/hold/pivot。
+- **本次 rewrite 與上一版差異**: 補齊 §5.3 degradation regex（移除 emoji 對齊）、§11/§12 標題一致性、§4.3 Prisma 模型英文命名（validator regex 需求）、§1.5 sweet<5 強制 Stage 1.5 gate 明文化。
 
 *文件結束。本文件為 v2.2.1，依 sweet-spot-driven rewrite 完全重寫。*
