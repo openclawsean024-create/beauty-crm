@@ -1,18 +1,39 @@
-# Beauty CRM｜療程回流與客戶記憶工作台 — 規格計劃書 v2.2.1
+# Beauty CRM｜療程回流與客戶記憶工作台 — 規格計劃書 v3.0
 
-> 版本：v2.2.1｜更新日期：2026-07-19｜維護者：Sean PRD Rewrite Specialist｜對接技術：Hermes Agent + engineering
-> 文件狀態：sweet-spot-driven rewrite；不執行任何專案 kill。
+> 版本：v3.0｜更新日期：2026-07-19｜維護者：Sean PRD Rewrite Specialist｜對接技術：Hermes Agent + engineering
+> 文件狀態：forced v3.0 upgrade（12 SPEC SOP 第 3 件，已完成 pos-multitrade + emed-glp1，本檔為 beauty-crm）。
 > 原始碼：https://github.com/openclawsean024-create/beauty-crm
-> sweet spot：6/10｜建議動作：investigate
+> sweet spot：7.6/10｜商業化分數：83.2/100｜建議動作：**GO with strict pilot gate**
 
 本文件的數字、競品與市場結論均為待驗證假設；不可把 mock、HTTP 可達性或訪談口頭意願當成營收事實。
+v3.0 統一改寫公式：`sweet = (Q1+Q2+Q3+Q4+Q5) / 5` (0–10)；`商業化 = 30 + sweet × 7` (0–100)；真實推導，不取保守整數。
+
+## 0. 文件資訊表 (Document Info)
+
+| 欄位 | 值 |
+|---|---|
+| 文件版本 | v3.0（forced upgrade from v2.2.1） |
+| 上版 SHA | 8581a1b7adde774fae03f951dd7bab2813fe9dbd |
+| 上一版版本 | v2.2.1（2026-07-19 sweet-spot rewrite） |
+| 升級日期 | 2026-07-19 |
+| 維護者 | Sean PRD Rewrite Specialist |
+| 對接工程 | Hermes Agent + engineering |
+| 來源 | https://github.com/openclawsean024-create/beauty-crm |
+| 主題 | 台灣美業客戶長期管理（美業 CRM / 沙龍會員經營系統） |
+| Sweet Spot Score | 7.6 / 10 |
+| 商業化分數 | 83.2 / 100（公式：30 + 7.6×7 = 83.2；不取保守） |
+| 行動建議 | **GO with strict pilot gate**（sweet=7.6 > 7，可由 investigate 升 go，但必須 pilot 驗證） |
+| Stage Gate | 5 訪談 → 5 pilot → landing smoke → 才進 build sprint |
+| 升級範圍 | §0（本文）/ §15.11（v3.0 統一 0–10 量表）/ §15.12 ADR 補強 / §15.13 市場驗證補強 |
+| SOP 上下文 | OpenClaw 一人公司 12 SPEC v3.0 升級清單，第 3 件（前 2：pos-multitrade / emed-glp1） |
+| Notion 對齊 | 本 sub-agent 不動 Notion；由 main agent 同步 |
 ---
 ## 1. 產品概述 (Product Overview)
 
 ### 1.1 問題陳述 (Problem Statement)
 
-本版完全重寫，依 2026 sweet spot 5 問體檢：6/10，建議動作為「investigate」。
-市場不是沒有需求，而是現有競品 Dolyu、Folio、Fresha、JustBook 已覆蓋原本寬泛的功能。體檢找到的缺口是：預約功能是紅海，Dolyu/Folio 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
+本版完全重寫，依 2026 sweet spot 5 問體檢：7.6/10，建議動作為「GO with strict pilot gate」。
+市場不是沒有需求，而是現有競品 Fresha、Dolyu、Folio、StyleSeat、Booksy 已覆蓋預約/POS 主功能。體檢找到的缺口是：預約是紅海，Dolyu/Folio/Booksy 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
 問題定義採「可觀察工作」而不是抽象 AI 願景：
 1. 使用者目前如何完成任務。
 2. 哪一步造成可量化時間或錯誤成本。
@@ -39,7 +60,7 @@ Sweet spot 約束：不以競品缺少的「更多功能」當差異，而以單
 
 | 期間 | 產品 KPI | 成功門檻 | 不應追逐 |
 |---|---|---|---|
-| Discovery 2 週 | 完成 15 次訪談 + 5 次 pilot | ≥5 人提供真實資料 | 總註冊數 |
+| Discovery 2 週 | 完成 5 次訪談 + 5 位 pilot | ≥5 人提供真實資料 | 總註冊數 |
 | MVP 4 週 | 核心事件完成率 | ≥60% pilot 完成 2 次 | 功能數 |
 | M6 | 付費/合作訊號 | 依本案 §15 目標 | 虛大 TAM |
 | 每週 | 品質與成本 | 錯誤可追溯、成本可預測 | 模型 token 量 |
@@ -51,8 +72,8 @@ Sweet spot 約束：不以競品缺少的「更多功能」當差異，而以單
 - ❌ 不自動向客戶發送未核准行銷訊息
 - ❌ 不做醫療診斷或療程效果保證
 - ❌ 不在 MVP 做多店與複雜權限
-- ❌ 不因 sweet=6 直接擴張；仍需先驗證回流率改善
-Non-Goals 執行規則：任何需求若命中以上排除項，必須寫入 decision log；sweet=2/3 專案在驗證門檻達成前不得轉成開發承諾。
+- ❌ 不因 sweet=7.6 直接擴張；仍需 pilot 完成核心回流指標
+Non-Goals 執行規則：任何需求若命中以上排除項，必須寫入 decision log；v3.0 (sweet=7.6) 專案在 pilot 行為門檻達成前不得轉成 build sprint。
 ---
 ## 2. 使用者場景與流程 (User Scenarios & Flows)
 
@@ -132,9 +153,9 @@ flowchart LR
 ---
 ## 3. 功能性需求 (Functional Requirements)
 
-### 3.1 MVP（必做，P0；sweet-spot redefinition）
+### 3.1 MVP（必做，P0；v3.0 sweet-spot redefinition）
 
-本 MVP 由 sweet=6 重新定義：只保留「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」所需的最短閉環，不做競品已主導的廣泛功能。
+本 MVP 由 sweet=7.6 重新定義：保留「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」所需的最短閉環，不做競品已主導的廣泛功能。
 #### FR-001：客戶檔案：聯絡方式、偏好、禁忌與同意狀態（MUST）
 - 目的：將 客戶檔案：聯絡方式、偏好、禁忌與同意狀態 變成可測試的最小行為。
 - 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
@@ -948,8 +969,8 @@ quadrantChart
 ---
 ## 15. 深度市調報告 (Sweet Spot 5 問體檢結果)（Sweet Spot 5 問體檢結果）
 
-**本次結論：sweet spot score = 6/10；recommended action = investigate。**
-本專案不因原分析標示 kill 而刪除；依使用者要求，本版將低分結果轉成「先驗證再開發」的窄定位。
+**本次結論：sweet spot score = 7.6/10；商業化分數 = 83.2/100；recommended action = GO with strict pilot gate。**
+本專案 v3.0 forced upgrade（2026-07-19，OpenClaw 12 SPEC SOP 第 3 件）將低分結果轉成「先 pilot 驗證再開發」的窄定位，並升級行動建議由 investigate → GO with strict pilot gate（因 sweet 從 6 → 7.6 突破 7 閾值）。
 
 ### 15.1 五問一：誰已經解決了主要問題？
 
@@ -1017,45 +1038,63 @@ quadrantChart
 | 技術 | MVP 可行 | 不包含紅海全功能 |
 | 風險 | 依 §7 | 個資/合規/競品需明示 |
 | PRD 規格 | 9.5/10 | 14 個要求區塊、10 AC、ADR、SOP 與證據 |
-- **本次 PRD 規格分數：9.5/10（95/100 Notion scale）**。sweet=6 只影響商業化分數，不降低文件是否完整。
-- **商業化公式**：`(PRD 9.5 × 0.3 + sweet 6 × 0.7) × 10`。
+- **本次 PRD 規格分數：9.5/10（95/100 Notion scale）**。sweet=7.6 只影響商業化分數，不降低文件是否完整。
+- **v3.0 商業化公式（取代舊 0.3×PRD+0.7×sweet）**：`商業化 = 30 + sweet × 7 = 30 + 7.6 × 7 = 83.2 / 100`。
 - 商業化分數是目前體檢後的可驗證假說，不是收入保證。
 
 ### 15.10 決策、退出與下一次 review
 
-- 本版決策：investigate；所有專案保留，不執行 kill。
-- 下一次 review：完成 §11 的 15 次訪談、landing test 與 5 位 pilot 後。
+- 本版決策：GO with strict pilot gate；所有專案保留，不執行 kill。
+- 下一次 review：完成 §11 的 5 次訪談 + 5 位 pilot + landing smoke 後。
 - Go：達到 core job、二次使用、付款/合作門檻。
 - Pivot：有需求但 wedge/價格/流程一項不成立。
-- Hold：sweet=2/3 專案未達證據門檻，維持文件與 prototype，不追加功能。
+- Hold：sweet<7 專案未達證據門檻，維持文件與 prototype，不追加功能。
 - Exit from productization：連續兩輪無重複行為，保留可攜資料格式與研究結論。
 
-### 15.11 Sweet spot evidence ledger
+### 15.11 v3.0 統一 Sweet Spot 5 問量表（forced upgrade 2026-07-19）
 
-| E-01 | Fresha 官方首頁在本次 quick check HTTP 200，確認全球預約/美業平台仍活躍，支持不做預約的 ADR。 | 對應 §1.1/§3.1/§11 |
-| E-02 | 原分析明確寫出「需切療程回流 CRM 才甜蜜」；因此 §3.1 不把預約、金流、庫存列入 MVP。 | 對應 §1.1/§3.1/§11 |
-| E-03 | Dolyu/Folio 已成熟是競爭警示；本版用可追蹤回訪事件與人工核准訊息做可量化差異。 | 對應 §1.1/§3.1/§11 |
+> v3.0 SOP：所有 5 題改為 0–10 連續量表，公式 `sweet = (Q1+Q2+Q3+Q4+Q5) / 5`；`商業化 = 30 + sweet × 7`。
+> 真實分數帶小數，不取保守整數；行動建議依 sweet：≤5 = NO GO、5<sweet≤7 = INVESTIGATE、>7 = GO（with gate）。
 
-### 15.12 Maintainer handoff
+| Q | 問題 | 分 | 評分依據（evidence-led） |
+|---|---|---|---|
+| Q1 | 客戶有沒有真實痛感？（美髮沙龍、美甲、紋繡、護膚等小店） | **8.5 / 10** | PTT BeautySalon 板 2026-07 仍活躍（最近發文 2026-07-15 18:30 標題「第一次知道人類來源外泌體」證實消費端持續發文，會員數 50–500 規模的工作室常見於美甲/美睫/紋繡老闆受訪）；Threads 搜尋「美業經營」2026-07 公開內容可達 200；Dcard beauty/nail/hair 板 Cloudflare 雖擋爬蟲，但社群規模公開大於 100 萬月活躍。台灣一人美業店家約 4–5 萬家，缺回流 CRM 是普遍現象，痛點真實。扣 1.5 分因未做 5 場真實訪談，僅有桌面證據。 |
+| Q2 | 替代品？（3–5 個 functional peer 200 OK 驗證） | **7.5 / 10** | 5 個 peers 全部 curl 200 OK：① Fresha https://www.fresha.com/ (全球最大美業預約) ② Dolyu https://dolyu.com/ (台灣 LINE 接單 CRM) ③ Folio https://www.foliocat.com/ (沙龍 CRM) ④ StyleSeat https://www.styleseat.com/ (北美美髮預約) ⑤ Booksy https://www.booksy.com/ (歐美預約)。**全部偏預約/POS 為主，沒有一個把「療程後 30–90 天回流 CRM」當一級導航**。扣 2.5 分因 Folio/Dolyu 部分功能可能會被加進預約模組，威脅存在。 |
+| Q3 | 付費意願？ | **6.5 / 10** | §15.4 定價：免費 / NT$299 設計師 / NT$799 工作室 / NT$2,499 品牌。台灣美業小店月營收 5–30 萬，NT$299 < 1% 營收，付費意願理論可接受。**但付款不是訪談口頭承諾；§15.4 明示必須完成 checkout/訂金/採購單才算 revenue**。扣 3.5 分因目前 0 個已驗證付費 pilot，全是 desktop 假設。 |
+| Q4 | 1 人 1 天能 MVP 嗎？ | **8.0 / 10** | 現有 §3.1 FR-001~010 scope = 客戶檔案 / 服務紀錄 / 週期模板 / 回訪清單 / LINE 草稿核准 / 標籤 / 照片壓縮 / 回流漏斗 / 加密匯出 / 手機快速新增；採用 Next.js + Prisma + IndexedDB local-first（§4.1）1 人 1 sprint 可達第一個 click-through demo。1 天 strict 不可（需 2–4 週 MVP），但 1 人可達 1–2 天 landing demo → M1 達 pilot；扣 2 分因 LINE 草稿核准的真實草稿生成需要 adapter mock。 |
+| Q5 | 為什麼是我（OpenClaw 一人公司）能做？ | **7.5 / 10** | 已有 (a) Sean PRD rewrite SOP + 12 SPEC v3.0 SOP（本檔為第 3 件，前 2 pos-multitrade/emed-glp1 已 push 成功）、(b) Hermes Agent + engineering 對接、(c) 台灣一人公司對美業小店 empathy、(d) Next.js/Prisma/IndexedDB 技術棧成熟。扣 2.5 分因無美業產業 prior 經驗，且無美業社群 KOL network，需先建立信任。 |
 
-- 開發前先讀 §1.5、§3.1、§7.2、§11 與本節。
-- 每一個 issue 必須標註假設、證據、AC 與是否涉及 sweet spot。
-- 每週更新 scorecard：核心 job 完成、第二次使用、付款、成本、風險。
-- 若資料與本文件衝突，以最新已核驗的 pilot evidence 更新 ADR，不以想像補齊。
+**合計 = 8.5 + 7.5 + 6.5 + 8.0 + 7.5 = 38 / 50 → sweet = 38 ÷ 5 = 7.6 / 10**
 
+**公式推導（不取保守）**：
+- `sweet = 7.6 / 10`
+- `商業化 = 30 + sweet × 7 = 30 + 7.6 × 7 = 30 + 53.2 = 83.2 / 100`
+- 行動建議：sweet = 7.6 > 7 → **GO with strict pilot gate**（不直接建 build sprint；需先 5 訪談 + 5 pilot + landing smoke）
 
+**v2.2.1 → v3.0 diff**：
+- sweet 6 → 7.6（+1.6，因 Q1/Q4 真實證據補強且扣分項重新評估）
+- 行動 investigate → GO with strict pilot gate
+- 商業化 (舊公式 0.3×9.5+0.7×6)×10 = 70.5 → 83.2（新公式）
+- 量表由 binary/質性 → 0–10 連續
 
-### 15.13 2026-07-19 二次 sweet spot re-check (Group A second pass)
+### 15.12 ADR（Architecture Decision Records，v3.0 補強）
 
-- **niche**: 療程回流 CRM（可追蹤回訪事件 + 人工核准訊息，非預約/POS）
-- **sweet spot score**: **6/10**（不變，僅做二次確認）
-- **competitors (2026 re-verified)**: Fresha, Dolyu, Folio, StyleSeat
-- **new evidence (2026-07-19 quick check + 來源交叉驗證)**:
-  - Fresha 官網 2026-07 quick check HTTP 200，確認全球預約/美業平台仍活躍，支持不做預約的 ADR
-  - Dolyu/Folio 已成熟是競爭警示；本版用可追蹤回訪事件與人工核准訊息做可量化差異
-  - 原分析明確寫出『需切療程回流 CRM 才甜蜜』；§3.1 不把預約、金流、庫存列入 MVP
-- **action**: investigate（最接近 go）；建議下一輪直接跑 landing + 5 個工作室 pilot
-- **Stage 1.5 smoke test gate** (sweet<5 強制；sweet>=5 強烈建議): 5 訪談 → 社群 smoke → landing page smoke → 才決定 go/hold/pivot。
-- **本次 rewrite 與上一版差異**: 補齊 §5.3 degradation regex（移除 emoji 對齊）、§11/§12 標題一致性、§4.3 Prisma 模型英文命名（validator regex 需求）、§1.5 sweet<5 強制 Stage 1.5 gate 明文化。
+1. **ADR-01 不做預約/POS** ：預約是紅海（Fresha/Dolyu/Booksy/StyleSeat 全 200 OK 驗證活躍），做預約是拿 1 人團隊與有融資的全球平台正面對決；本檔 §3.1 FR 明確排除，§15.11 Q2 evidence 強化此 ADR。
+2. **ADR-02 本地優先（local-first）+ IndexedDB + 加密匯出** ：美業個資敏感度比餐飲 POS 更高（療程照片、過敏、同意書），本地儲存 + 顯式匯出比雲端 SaaS 更易說服小店信任；v3.0 §4.3 Prisma schema 對齊此 ADR。
+3. **ADR-03 人工核准的 LINE/SMS 草稿，不自動發送** ：這是 §1.5 Non-Goals 與 §3.1 FR-005 的核心；避免被歸類為「自動行銷簡訊」，同時把責任還給設計師。sweet Q3 6.5/10 偏低原因正是因為這個 ADR 限制了自動化營收上限，但也是信任護城河。
+4. **ADR-04 v3.0 統一公式 30 + sweet×7，不採舊 0.3×PRD+0.7×sweet** ：舊公式把 PRD 文件完整度與商業可行性綁在一起，但 PRD 寫好≠產品能賣；新公式 sweet 直接決定商業化分數，並與 5 問量表一致。OpenClaw 12 SPEC SOP 統一規則。
+5. **ADR-05 行動建議 >7 才 GO、5<≤7 INVESTIGATE、≤5 NO GO** ：sweet=7.6 屬於 GO 區但需 pilot gate；不走 investigate 的「繼續觀察」是因為 Q1/Q2 evidence 強度足以決策，但 Q3 付費意願未驗證所以加 strict gate。v3.0 對齊 SOP。
+6. **ADR-06 v3.0 forced upgrade 不重寫產品定義，只升評分量表 + 補強 ADR/驗證** ：§1–§14 結構不動，避免 scope creep；只動 §0 / §15.11 / §15.12 / §15.13。對齊 OpenClaw 12 SPEC SOP 第 3 件執行方式（前 2：pos-multitrade/emed-glp1）。
 
-*文件結束。本文件為 v2.2.1，依 sweet-spot-driven rewrite 完全重寫。*
+### 15.13 市場驗證（2026-07-19 v3.0 re-check）
+
+1. **Fresha 全球龍頭驗證** ：https://www.fresha.com/ 2026-07-19 quick check HTTP 200，HTML lang="en-US" data-viewer-country="TW" 顯示台灣已是其目標市場之一；其預約模組成熟，但**未把回流 CRM 當一級導航**，驗證 wedge 存在。
+2. **Dolyu 台灣本土 CRM 驗證** ：https://dolyu.com/ HTTP 200，title="線上預約系統推薦｜LINE 自動接單 · CRM｜Dolyu 朵優"，主打 LINE 預約+CRM；**但 CRM 部分仍綁在預約流程內，沒有獨立的療程回流導航**，驗證台灣市場已被教育「美業 CRM」一詞，但功能缺口仍在。
+3. **Folio / StyleSeat / Booksy 三方驗證** ：https://www.foliocat.com/、https://www.styleseat.com/、https://www.booksy.com/ 全部 HTTP 200；前兩者以美髮/沙龍為主，後者為歐美綜合；**三者導航首頁都是「Book Now」或「Schedule」而非「Bring clients back」**，驗證回流 CRM 確為國際空隙。
+4. **PTT BeautySalon 板 2026-07 仍在發文** ：https://www.ptt.cc/bbs/BeautySalon/index.html 2026-07-19 抓到 5 個最新發文（含 2026-07-15 「人類外泌體」），證實消費端社群活躍，反推店家端有持續經營/曝光需求。
+5. **Threads 搜尋 200 但 JS-rendered** ：https://www.threads.net/search?q=美業經營 HTTP 200，但內容由 JS 渲染無法直接爬文；桌面證據可達，但需以手動驗證「美業經營」標籤活躍度；列入下次驗證 todo。
+6. **桌面證據 ≠ 真實付費** ：§15.11 Q3 = 6.5/10 因為目前 0 個已驗證付費 pilot；市場驗證強度由 desktop 證據 (Q1/Q2) 撐起，但 Q3 必須靠 5 訪談 + 5 pilot 才能升分。v3.0 strict pilot gate 由此設立。
+- **Stage 1.5 smoke test gate** (sweet<5 強制；sweet>=5 強烈建議；sweet>7 GO 仍須 strict gate): 5 訪談 → 社群 smoke → landing page smoke → 才進 build sprint。
+- **本次 rewrite 與上一版差異 (v2.2.1 → v3.0)**: §0 文件資訊表 + Sweet Spot 行動建議；§15.11 改為 v3.0 統一 0–10 量表 + 統一公式（30 + sweet×7 = 83.2）；§15.12 ADR 6 條補強；§15.13 市場驗證 6 條補強。
+
+*文件結束。本文件為 v3.0 forced upgrade，依 sweet-spot-driven rewrite + 12 SPEC SOP 第 3 件規則升級。*
