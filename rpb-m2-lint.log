@@ -1,0 +1,10 @@
+
+> beauty-crm@0.1.0 lint
+> eslint .
+
+
+/Users/sean/Documents/Agent space/prompts/beauty-crm/.clone/eslint.config.mjs
+  12:1  warning  Assign array to a variable before exporting as module default  import/no-anonymous-default-export
+
+✖ 1 problem (0 errors, 1 warning)
+

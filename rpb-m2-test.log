@@ -1,0 +1,21 @@
+
+> beauty-crm@0.1.0 test
+> vitest run
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /Users/sean/Documents/Agent space/prompts/beauty-crm/.clone
+
+ ✓ tests/tiers.test.ts (9 tests) 3ms
+ ✓ tests/reminders.test.ts (6 tests) 4ms
+ ✓ tests/treatments.test.ts (7 tests) 8ms
+ ✓ tests/analytics.test.ts (5 tests) 8ms
+ ✓ tests/customers.test.ts (8 tests) 12ms
+ ✓ tests/integration.test.ts (3 tests) 10ms
+ ✓ tests/broadcast.test.ts (9 tests) 10ms
+
+ Test Files  7 passed (7)
+      Tests  47 passed (47)
+   Start at  22:12:52
+   Duration  284ms (transform 176ms, setup 0ms, collect 316ms, tests 54ms, environment 0ms, prepare 408ms)
+
