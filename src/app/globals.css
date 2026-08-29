@@ -20,6 +20,11 @@ button {
   font-size: 14px;
 }
 
+button:focus-visible {
+  outline: 2px solid #d4736a;
+  outline-offset: 2px;
+}
+
 button.primary {
   background: #d4736a;
   color: #fff;
@@ -32,4 +37,9 @@ input, select, textarea {
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
+}
+
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #d4736a;
+  outline-offset: 1px;
 }

@@ -30,7 +30,7 @@ export default function Dashboard() {
 
   useEffect(() => setHydrated(true), []);
 
-  if (!hydrated) return <div style={{ padding: 24 }}>載入中…</div>;
+  if (!hydrated) return <span role="status" aria-live="polite" style={{ padding: 24, display: 'block' }}>載入中…</span>;
 
   const overdue = listOverdue(customers, treatments, new Date());
   const overdueIds = new Set(overdue.map((o) => o.customerId));
@@ -51,6 +51,8 @@ export default function Dashboard() {
         {(['overview', 'customers', 'reminders', 'analytics', 'broadcast'] as const).map((k) => (
           <button
             key={k}
+            type="button"
+            aria-current={tab === k ? 'page' : undefined}
             className={tab === k ? 'primary' : ''}
             onClick={() => setTab(k)}
           >
