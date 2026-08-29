@@ -17,8 +17,13 @@ export interface Reminder {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// 使用本地時區輸出 YYYY-MM-DD。
+// 不能用 toISOString().slice(0,10) — 那是 UTC，對台灣使用者（UTC+8）會在跨日時 off-by-one。
 function toDateOnly(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 export function computeReminder(

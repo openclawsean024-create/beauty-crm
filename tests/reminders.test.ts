@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { computeReminder, listOverdue, listDueSoon } from '@/lib/reminders';
 import { createCustomer } from '@/lib/customers';
 import { recordTreatment } from '@/lib/treatments';
@@ -82,5 +82,39 @@ describe('reminders — 回訪提醒', () => {
     // c1 overdue, c2 due-soon (recall 7/31, today 7/19 → 12 days)
     // c3 hair recall 45 days, 7/15+45 = 8/29 → 41 days upcoming
     expect(due.map((d) => d.customerId).sort()).toEqual(['c1', 'c2']);
+  });
+});
+
+describe('reminders — 時區正確性 (Asia/Taipei)', () => {
+  // 守護 M1 時區修正：toDateOnly 必須用本地時區輸出 YYYY-MM-DD，
+  // 避免舊實作 toISOString().slice(0,10) 在台灣使用者看到的「跨日 off-by-one」。
+  beforeAll(() => {
+    vi.stubEnv('TZ', 'Asia/Taipei');
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('AC: suggestedRecallAt 使用本地時區，不會因 UTC 跨日而顯示錯誤日期', () => {
+    const c = mkCustomer('c1');
+    // performedAt = 2026-06-30T20:00:00Z
+    //   UTC date = 2026-06-30
+    //   Taipei   = 2026-07-01 04:00
+    // 28 天後 recallDate = 2026-07-28T20:00:00Z
+    //   UTC date = 2026-07-28
+    //   Taipei   = 2026-07-29 04:00
+    // 舊 (toISOString) → '2026-07-28' 對台灣使用者錯
+    // 新 (本地時區) → '2026-07-29' 對台灣使用者對
+    const t = recordTreatment({
+      id: 't1',
+      customerId: 'c1',
+      category: 'manicure',
+      serviceName: 'X',
+      price: 1000,
+      durationMin: 60,
+      performedAt: '2026-06-30T20:00:00Z',
+    });
+    const r = computeReminder(c, [t], new Date('2026-07-19T00:00:00Z'));
+    expect(r.suggestedRecallAt).toBe('2026-07-29');
   });
 });

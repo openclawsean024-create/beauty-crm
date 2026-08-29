@@ -11,6 +11,7 @@ import {
 } from '@/lib/broadcast';
 import { createCustomer } from '@/lib/customers';
 import { recordTreatment } from '@/lib/treatments';
+import { listOverdue } from '@/lib/reminders';
 
 const today = new Date('2026-07-19T00:00:00Z');
 
@@ -105,5 +106,22 @@ describe('broadcast — 行銷推播', () => {
     expect(Object.keys(BUILTIN_TEMPLATES).sort()).toEqual([
       'birthday', 'inactive_90d', 'recall_due', 'vip_upgrade',
     ]);
+  });
+
+  it('AC: selectOverdue 與 listOverdue 對同一組資料回傳相同客戶集合 (DRY 重構後)', () => {
+    // 這個測試守護 M1 重構：selectOverdue 不再硬編碼 recall days，
+    // 必須跟 reminders.listOverdue (用 suggestRecallDays) 一致
+    const c1 = mkC('1'); // manicure 5/20 + 28 = 6/17 → 過期 -32 days
+    const c2 = mkC('2'); // eyelash 5/30 + 21 = 6/20 → 過期 -29 days
+    const c3 = mkC('3'); // hair 7/15 + 45 = 8/29 → upcoming +41 days
+    const treatments = [
+      recordTreatment({ id: 'a', customerId: '1', category: 'manicure', serviceName: 'A', price: 1, durationMin: 60, performedAt: '2026-05-20T10:00:00Z' }),
+      recordTreatment({ id: 'b', customerId: '2', category: 'eyelash', serviceName: 'B', price: 1, durationMin: 60, performedAt: '2026-05-30T10:00:00Z' }),
+      recordTreatment({ id: 'c', customerId: '3', category: 'hair', serviceName: 'C', price: 1, durationMin: 60, performedAt: '2026-07-15T10:00:00Z' }),
+    ];
+    const fromBroadcast = selectOverdue([c1, c2, c3], treatments, today).map((c) => c.id).sort();
+    const fromReminders = listOverdue([c1, c2, c3], treatments, today).map((r) => r.customerId).sort();
+    expect(fromBroadcast).toEqual(fromReminders);
+    expect(fromBroadcast).toEqual(['1', '2']);
   });
 });

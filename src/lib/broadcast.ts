@@ -3,7 +3,7 @@
 
 import type { Customer } from './customers';
 import type { Treatment } from './treatments';
-import { lastTreatment } from './treatments';
+import { lastTreatment, suggestRecallDays } from './treatments';
 import { computeCustomerLTV } from './analytics';
 import { tierForSpend } from './tiers';
 
@@ -78,14 +78,8 @@ export function selectOverdue(
     const last = lastTreatment(treatments, c.id);
     if (!last) return false;
     const performed = new Date(last.performedAt).getTime();
-    const recallDays =
-      last.category === 'manicure'
-        ? 28
-        : last.category === 'eyelash'
-          ? 21
-          : last.category === 'skincare'
-            ? 30
-            : 45;
+    // DRY: 重用 treatments 模組的 recall 規則，不要自己寫魔術數字
+    const recallDays = suggestRecallDays(last.category);
     const recallAt = performed + recallDays * 86_400_000;
     return recallAt < today.getTime();
   });
