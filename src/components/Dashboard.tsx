@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createCustomer, type Customer } from '@/lib/customers';
 import { recordTreatment, type Treatment, suggestRecallDays } from '@/lib/treatments';
-import { computeReminder, listOverdue } from '@/lib/reminders';
+import { computeReminder, listOverdue, setOverride, type Reminder, type OverrideOptions } from '@/lib/reminders';
 import { computeRevenueByMonth, topSpenders } from '@/lib/analytics';
 import { tierForSpend } from '@/lib/tiers';
 import { buildBroadcast, selectByConsent, approve, BUILTIN_TEMPLATES, type BroadcastTarget } from '@/lib/broadcast';
@@ -30,6 +30,8 @@ export default function Dashboard() {
   // FR-005 / AC-007：本機追蹤哪些 broadcast target 已 approved
   // （示範用 — 真實情境會由 store / 後端維護）
   const [approvedTargets, setApprovedTargets] = useState<Record<string, BroadcastTarget>>({});
+  // FR-004 / AC-002：本機追蹤哪些 reminder 已被設計師手動覆寫
+  const [reminderOverrides, setReminderOverrides] = useState<Record<string, OverrideOptions>>({});
 
   useEffect(() => setHydrated(true), []);
 
@@ -96,13 +98,37 @@ export default function Dashboard() {
       {tab === 'reminders' && (
         <section>
           {customers.map((c) => {
-            const r = computeReminder(c, treatments);
+            const base = computeReminder(c, treatments);
+            const ov = reminderOverrides[c.id];
+            const r: Reminder = ov ? setOverride(base, ov) : base;
             const last = treatments.find((t) => t.id === r.lastTreatmentId);
             return (
               <Card key={c.id} title={`${c.name} — ${r.status}`}>
                 <p>上次療程：{last ? `${last.serviceName} (${last.category})` : '—'}</p>
-                <p>建議回訪：{r.suggestedRecallAt}（{r.daysUntilRecall >= 0 ? `還有 ${r.daysUntilRecall} 天` : `已過 ${-r.daysUntilRecall} 天`}）</p>
+                <p>
+                  建議回訪：{r.suggestedRecallAt}（{r.daysUntilRecall >= 0 ? `還有 ${r.daysUntilRecall} 天` : `已過 ${-r.daysUntilRecall} 天`}）
+                </p>
                 <p>類別預設週期：{last ? suggestRecallDays(last.category) : '—'} 天</p>
+                {r.overrideAt ? (
+                  <p style={{ fontSize: 12, color: '#3a7a3a' }}>
+                    ✓ 已覆寫 → {r.overrideAt}（{r.overriddenBy}：{r.overrideReason ?? '—'}）
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    style={{ marginTop: 4 }}
+                    onClick={() => {
+                      const next: OverrideOptions = {
+                        overrideAt: '2026-08-15T00:00:00.000Z',
+                        overriddenBy: 'designer-local',
+                        overrideReason: 'demo 覆寫',
+                      };
+                      setReminderOverrides((prev) => ({ ...prev, [c.id]: next }));
+                    }}
+                  >
+                    覆寫回訪日
+                  </button>
+                )}
               </Card>
             );
           })}

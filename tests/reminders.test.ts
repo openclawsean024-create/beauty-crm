@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { computeReminder, listOverdue, listDueSoon } from '@/lib/reminders';
+import { computeReminder, listOverdue, listDueSoon, setOverride } from '@/lib/reminders';
 import { createCustomer } from '@/lib/customers';
 import { recordTreatment } from '@/lib/treatments';
 
@@ -116,5 +116,102 @@ describe('reminders — 時區正確性 (Asia/Taipei)', () => {
     });
     const r = computeReminder(c, [t], new Date('2026-07-19T00:00:00Z'));
     expect(r.suggestedRecallAt).toBe('2026-07-29');
+  });
+});
+
+describe('reminders — FR-003 / FR-004 / AC-002 可調週期 + 手動覆寫', () => {
+  it('AC-002 / FR-003: computeReminder 接受 customRules 影響 suggestedRecallAt', () => {
+    const c = mkCustomer('c1');
+    // 6/28 manicure → 預設 28 天 = 7/26；自訂 14 天 = 7/12
+    const t = recordTreatment({
+      id: 't1', customerId: 'c1', category: 'manicure', serviceName: 'X',
+      price: 100, durationMin: 30, performedAt: '2026-06-28T10:00:00Z',
+    });
+    const base = computeReminder(c, [t], today, 7);
+    expect(base.suggestedRecallAt).toBe('2026-07-26');
+    const custom = computeReminder(c, [t], today, 7, { manicure: 14 });
+    expect(custom.suggestedRecallAt).toBe('2026-07-12');
+  });
+
+  it('AC-002 / FR-003: customRules 部分覆寫 — 沒列的 category 用 DEFAULT', () => {
+    const c = mkCustomer('c1');
+    // 用 eyelash 測試：customRules 只覆寫 manicure
+    const t = recordTreatment({
+      id: 't1', customerId: 'c1', category: 'eyelash', serviceName: 'X',
+      price: 100, durationMin: 30, performedAt: '2026-06-28T10:00:00Z',
+    });
+    const r = computeReminder(c, [t], today, 7, { manicure: 14 });
+    // eyelash 仍用 DEFAULT 21 天 → 7/19
+    expect(r.suggestedRecallAt).toBe('2026-07-19');
+  });
+
+  it('AC-002 / FR-004: setOverride 設定欄位 + 不可變', () => {
+    const c = mkCustomer('c1');
+    const t = recordTreatment({
+      id: 't1', customerId: 'c1', category: 'manicure', serviceName: 'X',
+      price: 100, durationMin: 30, performedAt: '2026-06-28T10:00:00Z',
+    });
+    const base = computeReminder(c, [t], today);
+    expect(base.overrideAt).toBeUndefined();
+    expect(base.overriddenBy).toBeUndefined();
+    expect(base.overrideReason).toBeUndefined();
+
+    const overridden = setOverride(base, {
+      overrideAt: '2026-08-15T00:00:00.000Z',
+      overriddenBy: 'designer-A',
+      overrideReason: '客戶出國延期',
+    });
+    expect(overridden.overrideAt).toBe('2026-08-15T00:00:00.000Z');
+    expect(overridden.overriddenBy).toBe('designer-A');
+    expect(overridden.overrideReason).toBe('客戶出國延期');
+    // immutability
+    expect(base.overrideAt).toBeUndefined();
+    expect(base.overriddenBy).toBeUndefined();
+    expect(base).not.toBe(overridden);
+  });
+
+  it('AC-002 / FR-004: computeReminder 接受未來 override → suggestedRecallAt 用 overrideAt', () => {
+    const c = mkCustomer('c1');
+    // today 2026-07-19；6/28 + 28 = 7/26（base 7 天後）
+    const t = recordTreatment({
+      id: 't1', customerId: 'c1', category: 'manicure', serviceName: 'X',
+      price: 100, durationMin: 30, performedAt: '2026-06-28T10:00:00Z',
+    });
+    const r = computeReminder(c, [t], today, 7, undefined, {
+      overrideAt: '2026-08-15T00:00:00.000Z', // 27 天後（未來）
+      overriddenBy: 'designer-A',
+      overrideReason: '客戶出國',
+    });
+    expect(r.suggestedRecallAt).toBe('2026-08-15');
+    expect(r.overrideAt).toBe('2026-08-15T00:00:00.000Z');
+    expect(r.overriddenBy).toBe('designer-A');
+    expect(r.daysUntilRecall).toBe(27); // 從 today 算 27 天
+  });
+
+  it('AC-002 / FR-004: computeReminder 接受過去 override → 用 base suggestedRecallAt', () => {
+    const c = mkCustomer('c1');
+    const t = recordTreatment({
+      id: 't1', customerId: 'c1', category: 'manicure', serviceName: 'X',
+      price: 100, durationMin: 30, performedAt: '2026-06-28T10:00:00Z',
+    });
+    const r = computeReminder(c, [t], today, 7, undefined, {
+      overrideAt: '2026-01-01T00:00:00.000Z', // 過去
+      overriddenBy: 'designer-A',
+    });
+    // 過去 override 不影響計算 → 用 base 7/26
+    expect(r.suggestedRecallAt).toBe('2026-07-26');
+    // 但 override 紀錄仍保存供 audit
+    expect(r.overrideAt).toBe('2026-01-01T00:00:00.000Z');
+  });
+
+  it('AC-002: setOverride 必填欄位缺失 throw', () => {
+    const c = mkCustomer('c1');
+    const t = recordTreatment({
+      id: 't1', customerId: 'c1', category: 'manicure', serviceName: 'X',
+      price: 100, durationMin: 30, performedAt: '2026-06-28T10:00:00Z',
+    });
+    const base = computeReminder(c, [t], today);
+    expect(() => setOverride(base, { overrideAt: '', overriddenBy: 'x' })).toThrow(/overrideAt/);
+    expect(() => setOverride(base, { overrideAt: '2026-08-15', overriddenBy: '' })).toThrow(/overriddenBy/);
   });
 });

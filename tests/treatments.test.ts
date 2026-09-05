@@ -66,4 +66,18 @@ describe('treatments — 療程紀錄 domain', () => {
     expect(suggestRecallDays('skincare')).toBe(30);
     expect(suggestRecallDays('hair')).toBe(45);
   });
+
+  it('AC-003 / FR-003: 自訂 rules 改變單一 category 週期', () => {
+    expect(suggestRecallDays('manicure', { manicure: 14 })).toBe(14);
+    expect(suggestRecallDays('eyelash', { eyelash: 10 })).toBe(10);
+    expect(suggestRecallDays('skincare', { skincare: 60 })).toBe(60);
+  });
+
+  it('AC-003 / FR-003: 自訂 rules 與 DEFAULT 混用（部分 category 覆寫）', () => {
+    const rules = { manicure: 14 };
+    expect(suggestRecallDays('manicure', rules)).toBe(14);  // 覆寫
+    expect(suggestRecallDays('eyelash', rules)).toBe(21);   // DEFAULT
+    expect(suggestRecallDays('skincare', rules)).toBe(30);  // DEFAULT
+    expect(suggestRecallDays('hair', rules)).toBe(45);      // DEFAULT
+  });
 });

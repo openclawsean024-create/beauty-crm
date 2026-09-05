@@ -81,14 +81,30 @@ export function lastTreatment(
 }
 
 // 預設回訪間隔（天）— 各療程的建議回流週期
-const DEFAULT_RECALL_DAYS: Record<TreatmentCategory, number> = {
+export const DEFAULT_RECALL_DAYS: Record<TreatmentCategory, number> = {
   manicure: 28, // 美甲 4 週
   eyelash: 21, // 美睫 3 週
   skincare: 30, // 皮膚管理 4 週
   hair: 45, // 髮型 6-7 週
 };
 
-export function suggestRecallDays(category: TreatmentCategory): number {
+/**
+ * 取得某 category 的建議回訪天數（FR-003：可調）。
+ *
+ * 行為：
+ * - 不傳 customRules → 用 DEFAULT_RECALL_DAYS
+ * - 傳入 customRules（Partial）→ 有覆寫的 category 用自訂值，沒覆寫的 fallback DEFAULT
+ *
+ * 設計：customRules 是 Partial<Record>，允許「只覆寫部分 category」，
+ * 避免呼叫端為了一個 manicure=14 要重複寫 4 個 key。
+ */
+export function suggestRecallDays(
+  category: TreatmentCategory,
+  customRules?: Partial<Record<TreatmentCategory, number>>,
+): number {
+  if (customRules && customRules[category] !== undefined) {
+    return customRules[category]!;
+  }
   return DEFAULT_RECALL_DAYS[category];
 }
 
