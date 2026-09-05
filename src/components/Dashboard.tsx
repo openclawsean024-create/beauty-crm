@@ -6,7 +6,7 @@ import { recordTreatment, type Treatment, suggestRecallDays } from '@/lib/treatm
 import { computeReminder, listOverdue } from '@/lib/reminders';
 import { computeRevenueByMonth, topSpenders } from '@/lib/analytics';
 import { tierForSpend } from '@/lib/tiers';
-import { buildBroadcast, selectByConsent, BUILTIN_TEMPLATES } from '@/lib/broadcast';
+import { buildBroadcast, selectByConsent, approve, BUILTIN_TEMPLATES, type BroadcastTarget } from '@/lib/broadcast';
 
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({ id: 'c1', name: '雅婷', phone: '0911111111', consent: 'granted', tags: ['VIP'] }),
@@ -27,6 +27,9 @@ export default function Dashboard() {
   const [treatments] = useState<Treatment[]>(SEED_TREATMENTS);
   const [tab, setTab] = useState<'overview' | 'customers' | 'reminders' | 'analytics' | 'broadcast'>('overview');
   const [hydrated, setHydrated] = useState(false);
+  // FR-005 / AC-007：本機追蹤哪些 broadcast target 已 approved
+  // （示範用 — 真實情境會由 store / 後端維護）
+  const [approvedTargets, setApprovedTargets] = useState<Record<string, BroadcastTarget>>({});
 
   useEffect(() => setHydrated(true), []);
 
@@ -145,12 +148,36 @@ export default function Dashboard() {
             ))}
           </Card>
           <Card title={`回訪推播預覽（${targets.length} 位已同意客戶）`}>
-            {targets.length === 0 ? <p>目前沒有過期待回訪客戶</p> : targets.map((t) => (
-              <div key={t.customer.id} style={{ borderTop: '1px dashed #d6c5c1', paddingTop: 8, marginTop: 8 }}>
-                <p>→ {t.customer.name} ({t.customer.phone})</p>
-                <pre style={{ background: '#fff', padding: 8, fontSize: 13 }}>{t.preview}</pre>
-              </div>
-            ))}
+            {targets.length === 0 ? <p>目前沒有過期待回訪客戶</p> : targets.map((t) => {
+              const approved = approvedTargets[t.customer.id];
+              const display = approved ?? t;
+              return (
+                <div key={t.customer.id} style={{ borderTop: '1px dashed #d6c5c1', paddingTop: 8, marginTop: 8 }}>
+                  <p>→ {t.customer.name} ({t.customer.phone}) <span style={{ color: '#a04030', fontSize: 12 }}>[{display.status}]</span></p>
+                  <pre style={{ background: '#fff', padding: 8, fontSize: 13 }}>{t.preview}</pre>
+                  {approved ? (
+                    <p style={{ fontSize: 12, color: '#3a7a3a' }}>
+                      ✓ 已核准 by {approved.approvedBy} @ {approved.approvedAt?.slice(0, 16).replace('T', ' ')}
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          const next = approve(t, 'designer-local');
+                          setApprovedTargets((prev) => ({ ...prev, [t.customer.id]: next }));
+                        } catch (err) {
+                          console.error('approve failed', err);
+                        }
+                      }}
+                      style={{ marginTop: 4 }}
+                    >
+                      ✓ 核准草稿
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </Card>
         </section>
       )}

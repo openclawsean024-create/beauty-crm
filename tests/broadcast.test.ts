@@ -7,6 +7,8 @@ import {
   selectByTier,
   buildBroadcast,
   recheckConsentBeforeSend,
+  approve,
+  markSent,
   BUILTIN_TEMPLATES,
 } from '@/lib/broadcast';
 import { createCustomer } from '@/lib/customers';
@@ -94,12 +96,15 @@ describe('broadcast — 行銷推播', () => {
     expect(targets[0]!.preview).toContain('凝膠');
   });
 
-  it('AC: recheckConsentBeforeSend 客戶撤回同意 → 不送', () => {
+  it('AC-008: recheckConsentBeforeSend 客戶撤回同意 → throw 阻擋', () => {
     const c1 = mkC('1', { consent: 'granted' });
     const targets = buildBroadcast('recall_due', [c1], []);
     expect(targets).toHaveLength(1);
     const after = { ...c1, consent: 'revoked' as const };
-    expect(recheckConsentBeforeSend(targets[0]!, [after])).toBe(false);
+    // 行為改為 throw（見 broadcast.ts recheckConsentBeforeSend 註解）
+    expect(() => recheckConsentBeforeSend(targets[0]!, [after])).toThrow(/consent/);
+    // granted → 不 throw
+    expect(() => recheckConsentBeforeSend(targets[0]!, [c1])).not.toThrow();
   });
 
   it('AC: BUILTIN_TEMPLATES 至少 4 種（recall/birthday/vip/inactive）', () => {
@@ -123,5 +128,89 @@ describe('broadcast — 行銷推播', () => {
     const fromReminders = listOverdue([c1, c2, c3], treatments, today).map((r) => r.customerId).sort();
     expect(fromBroadcast).toEqual(fromReminders);
     expect(fromBroadcast).toEqual(['1', '2']);
+  });
+});
+
+describe('broadcast — FR-005 / AC-007 草稿核准狀態機', () => {
+  function mkDraft(consent: 'granted' | 'revoked' = 'granted') {
+    const c = mkC('c1', { consent });
+    return { c, targets: buildBroadcast('recall_due', [c], []) };
+  }
+
+  it('AC-007: buildBroadcast 預設 status=draft', () => {
+    const { targets } = mkDraft();
+    expect(targets[0]!.status).toBe('draft');
+    expect(targets[0]!.approvedBy).toBeUndefined();
+    expect(targets[0]!.approvedAt).toBeUndefined();
+  });
+
+  it('AC-007: approve 後 status=approved、approvedBy/At 有值', () => {
+    const { targets } = mkDraft();
+    const a = approve(targets[0]!, 'designer-A');
+    expect(a.status).toBe('approved');
+    expect(a.approvedBy).toBe('designer-A');
+    expect(a.approvedAt).toBeDefined();
+    expect(a.approvedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('AC-007: approve immutability — 原 target 不變', () => {
+    const { targets } = mkDraft();
+    const original = targets[0]!;
+    const a = approve(original, 'designer-A');
+    // 原物件未變
+    expect(original.status).toBe('draft');
+    expect(original.approvedBy).toBeUndefined();
+    expect(original.approvedAt).toBeUndefined();
+    // 新物件獨立
+    expect(a).not.toBe(original);
+    expect(a.preview).toBe(original.preview);
+  });
+
+  it('AC-007: approve non-draft → throw（不可重複核准）', () => {
+    const { targets } = mkDraft();
+    const a = approve(targets[0]!, 'designer-A');
+    expect(() => approve(a, 'designer-B')).toThrow(/cannot approve/);
+    // sent / cancelled 也不可
+    const sent = markSent(a);
+    expect(() => approve(sent, 'designer-B')).toThrow(/cannot approve/);
+  });
+
+  it('AC-007: approve 缺 designerId → throw', () => {
+    const { targets } = mkDraft();
+    expect(() => approve(targets[0]!, '')).toThrow(/designerId/);
+  });
+
+  it('AC-007: markSent requires approved — draft 直接 send → throw', () => {
+    const { targets } = mkDraft();
+    expect(() => markSent(targets[0]!)).toThrow(/must be in "approved"/);
+  });
+
+  it('AC-007: markSent approved → status=sent + sentAt', () => {
+    const { targets } = mkDraft();
+    const a = approve(targets[0]!, 'designer-A');
+    const s = markSent(a, '2026-07-20T10:00:00Z');
+    expect(s.status).toBe('sent');
+    expect(s.sentAt).toBe('2026-07-20T10:00:00Z');
+    // approved 紀錄仍保留
+    expect(s.approvedBy).toBe('designer-A');
+    expect(s.approvedAt).toBe(a.approvedAt);
+    // 不可變
+    expect(a.status).toBe('approved');
+    expect(a.sentAt).toBeUndefined();
+  });
+
+  it('AC-007: approved 草稿被 revoke consent → recheckConsentBeforeSend 必須 throw', () => {
+    const { c, targets } = mkDraft('granted');
+    const a = approve(targets[0]!, 'designer-A');
+    // 客戶撤回同意
+    const revoked = { ...c, consent: 'revoked' as const };
+    expect(() => recheckConsentBeforeSend(a, [revoked])).toThrow(/consent/);
+    // 即使 approved，沒有當下 granted 同意就 throw
+  });
+
+  it('AC-007: approved 草稿 + consent 仍 granted → recheckConsentBeforeSend 不 throw', () => {
+    const { c, targets } = mkDraft('granted');
+    const a = approve(targets[0]!, 'designer-A');
+    expect(() => recheckConsentBeforeSend(a, [c])).not.toThrow();
   });
 });
