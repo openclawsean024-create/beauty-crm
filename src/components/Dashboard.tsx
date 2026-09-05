@@ -9,6 +9,7 @@ import { tierForSpend } from '@/lib/tiers';
 import { buildBroadcast, selectByConsent, approve, BUILTIN_TEMPLATES, type BroadcastTarget } from '@/lib/broadcast';
 import { exportEncrypted, decryptEncrypted, EXPORT_FILE_EXTENSION, InvalidPassphraseError, type ExportPayload } from '@/lib/export';
 import { purgeAllData, PURGE_EVENT_NAME, type PurgeTombstoneEvent } from '@/lib/delete';
+import AddTreatmentSheet from '@/components/AddTreatmentSheet';
 
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({ id: 'c1', name: '雅婷', phone: '0911111111', consent: 'granted', tags: ['VIP'] }),
@@ -40,6 +41,11 @@ export default function Dashboard() {
   const [lastPurge, setLastPurge] = useState<{ wipedAt: string; tombstoneId: string } | null>(null);
   // FR-009 / AC-010：最近一次匯出 / 還原訊息（成功 / 失敗）
   const [exportMsg, setExportMsg] = useState<string>('');
+  // FR-010：手機新增表單開關
+  const [addOpen, setAddOpen] = useState(false);
+  // FR-010：最近一次 AddTreatmentSheet 提交的 performedAt + designerId
+  // 給「覆寫回訪日」按鈕取代 Round 1 留下的 hardcode 使用
+  const [lastSubmission, setLastSubmission] = useState<{ performedAt: string; designerId: string } | null>(null);
 
   useEffect(() => setHydrated(true), []);
 
@@ -144,6 +150,17 @@ export default function Dashboard() {
     }
   };
 
+  // FR-010：AddTreatmentSheet 提交後 append 到 treatments，並記住 designerId + 服務日期
+  const handleAddTreatment = (treatment: Treatment) => {
+    setTreatments((prev) => [treatment, ...prev]);
+    setLastSubmission({
+      performedAt: treatment.performedAt,
+      designerId: treatment.designerId ?? 'designer-local',
+    });
+    setAddOpen(false);
+    setExportMsg(`✓ 已新增服務：${treatment.serviceName}（${treatment.category}，NT$ ${treatment.price}）`);
+  };
+
   if (!hydrated) return <span role="status" aria-live="polite" style={{ padding: 24, display: 'block' }}>載入中…</span>;
 
   const overdue = listOverdue(customers, treatments, new Date());
@@ -208,6 +225,27 @@ export default function Dashboard() {
             <Stat label="活躍客戶" value={String(reachable.length)} />
             <Stat label="待回訪客戶" value={String(overdue.length)} />
             <Stat label="本月療程數" value={String(treatments.length)} />
+          </Card>
+          <Card title="快速操作">
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              style={{
+                minHeight: 48,
+                fontSize: 16,
+                fontWeight: 600,
+                background: '#a04030',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                padding: '10px 20px',
+              }}
+            >
+              ＋ 新增服務紀錄
+            </button>
+            <p style={{ fontSize: 12, color: '#6b4a45', marginTop: 8 }}>
+              手機單手可達：客戶欄位自動 focus、CTA 放底部、5 大類別快捷鈕、過敏醒目確認
+            </p>
           </Card>
           <Card title="商業化分數（來自 PRD v3.0）">
             <p>Sweet spot 7.6 / 10　商業化 83.2 / 100　建議：GO with strict pilot gate</p>
@@ -307,10 +345,17 @@ export default function Dashboard() {
                     type="button"
                     style={{ marginTop: 4 }}
                     onClick={() => {
+                      // FR-010：取代 Round 1 留下的 hardcode。
+                      // overrideAt 用「客戶上次療程 + 該類別 recall 天數」計算（資料驅動），
+                      // overriddenBy 用最近一次 AddTreatmentSheet 提交的設計師（單機示範 fallback designer-local）。
+                      const lastT = treatments.find((t) => t.id === r.lastTreatmentId);
+                      const baseDate = lastT ? new Date(lastT.performedAt) : new Date();
+                      const recallDays = lastT ? suggestRecallDays(lastT.category) : 28;
+                      const overrideDate = new Date(baseDate.getTime() + recallDays * 86_400_000);
                       const next: OverrideOptions = {
-                        overrideAt: '2026-08-15T00:00:00.000Z',
-                        overriddenBy: 'designer-local',
-                        overrideReason: 'demo 覆寫',
+                        overrideAt: overrideDate.toISOString(),
+                        overriddenBy: lastSubmission?.designerId ?? 'designer-local',
+                        overrideReason: '依客戶服務週期推算',
                       };
                       setReminderOverrides((prev) => ({ ...prev, [c.id]: next }));
                     }}
@@ -396,6 +441,13 @@ export default function Dashboard() {
           </Card>
         </section>
       )}
+
+      <AddTreatmentSheet
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSubmit={handleAddTreatment}
+        customers={customers}
+      />
     </div>
   );
 }
