@@ -85,7 +85,7 @@ describe('AddTreatmentSheet — SSR markup（react-dom/server）', () => {
     expect(html).not.toContain('role="dialog"');
   });
 
-  it('AC-010 / FR-010: 開啟時 open=true → 渲染 dialog + 客戶欄位 + 5 顆 preset', () => {
+  it('AC-010 / FR-010: 開啟時 open=true → 渲染 dialog + 客戶欄位 + 4 顆 preset', () => {
     const html = renderToString(
       createElement(AddTreatmentSheet, {
         open: true,
@@ -99,7 +99,7 @@ describe('AddTreatmentSheet — SSR markup（react-dom/server）', () => {
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('id="add-treatment-title"');
     expect(html).toContain('ats-customer'); // 客戶欄位 id
-    // 5 顆 preset（4 個類別 + custom 由 SERVICE_PRESETS 給）
+    // 4 大類別 preset（美甲 / 美睫 / 護膚 / 髮型）— 對齊 SPEC §3.1 TreatmentCategory
     expect(html).toContain('美甲');
     expect(html).toContain('美睫');
     expect(html).toContain('皮膚管理');

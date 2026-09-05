@@ -283,7 +283,7 @@ export default function Dashboard() {
               ＋ 新增服務紀錄
             </button>
             <p style={{ fontSize: 12, color: '#6b4a45', marginTop: 8 }}>
-              手機單手可達：客戶欄位自動 focus、CTA 放底部、5 大類別快捷鈕、過敏醒目確認
+              手機單手可達：客戶欄位自動 focus、CTA 放底部、4 大類別快捷鈕、過敏醒目確認
             </p>
           </Card>
           <Card title="商業化分數（來自 PRD v3.0）">

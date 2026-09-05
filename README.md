@@ -36,6 +36,9 @@ npm run dev    # http://localhost:3000
 npm test           # vitest 跑 47 個測試
 npm run build      # Next.js production build
 npm run lint       # ESLint
+
+# 跑 Lighthouse a11y（DoD-7，需先 build + start）
+bash scripts/lighthouse.sh http://localhost:3000
 ```
 
 CI 跑同樣三件事（lint + test + build），見 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)。

@@ -28,7 +28,7 @@
 - `src/components/AddTreatmentSheet.tsx`：手機單手快速新增 modal（FR-010 / AC-002-UI / AC-004）
   - mobile-first：< 480px bottom sheet（單手可達，CTA 置底放大）+ >= 900px centered modal
   - `useReducer` 管理 draft（`AddTreatmentDraft`），reducer `addTreatmentReducer` 純函式可獨立測
-  - 5 大類別 preset 快捷鈕（manicure / eyelash / skincare / hair）套預設服務名 + 價格 + 時長
+  - 4 大類別 preset 快捷鈕（美甲 / 美睫 / 護膚 / 髮型）套預設服務名 + 價格 + 時長
   - 客戶欄位 autofocus + datalist 搜尋
   - 過敏醒目確認（AC-004）：submit 前 `hasAllergyConflict` 偵測 → 紅色 alert (role=alert) 列衝突成分 + 需勾「已知風險，繼續」
   - 必填驗證：customerId / serviceName / price>0 / durationMin>0，缺漏 submit disabled

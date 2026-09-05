@@ -28,19 +28,40 @@
 
 1. **無持久化**：重新整理就清空。不適合真實營運。
 2. **無認證 / 授權**：任何人打開網站就看得到所有客戶。**不部署到公開 URL。**
-3. **無 audit log**：撤同意 / 編輯 / 推播都不留 trace。
+3. **無 audit log 持久化**：撤同意 / 編輯 / 推播只在 console.debug 留 trace，
+   關瀏覽器即清空。DoD-8 audit log 已實作（`src/lib/audit.ts`），但僅 in-memory。
 4. **無 rate limiting / 濫用防護**：UI 端的 local state 沒有 quota。
 
 ## 🔒 v2+ 必須做（架構變動時）
 
 - [ ] 加 DB + 後端 API → 同步加 auth (OAuth / email magic link)
-- [ ] 加 audit log 表（who / when / what）
+- [ ] audit log 串接 Sentry / OpenTelemetry（目前只在 `console.debug`）
 - [ ] 客戶端同意證明留 screenshot 或雙重 opt-in（個資法 §8）
 - [ ] PII 欄位加密 at rest（DB 層）
 - [ ] API rate limit（建議 60 req/min/user）
 - [ ] CORS / CSP header（Next.js middleware）
 - [ ] Dependency 漏洞掃描（`npm audit` 已在 install 時跑，目前 9 個，後續 sprint 排程修）
 - [ ] 加 SAST / DAST（Strix 或 Semgrep）
+
+## 🧪 跑 Lighthouse a11y 跑分（DoD-7）
+
+`scripts/lighthouse.sh` 與 `lighthouserc.json` 已建立（v0.3.0 round 3）。
+真實瀏覽器跑分需在 owner 環境觸發：
+
+```bash
+npm run build
+npm run start &
+sleep 3
+bash scripts/lighthouse.sh http://localhost:3000
+```
+
+或用 LHCI：
+
+```bash
+npx --yes @lhci/cli@latest autorun --config=lighthouserc.json
+```
+
+門檻：a11y ≥ 90（與 SPEC §3.1 DoD-7 一致）。
 
 ## 套件漏洞現況
 

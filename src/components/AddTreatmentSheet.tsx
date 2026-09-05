@@ -3,7 +3,7 @@
 // 設計目標：
 // - mobile-first：< 480px 用 bottom sheet（單手可達）
 // - tablet / desktop：centered modal
-// - 5 大類別 preset 快捷鈕（manicure / eyelash / skincare / hair / custom）
+// - 4 大類別 preset 快捷鈕（美甲 / 美睫 / 護膚 / 髮型）
 // - 過敏醒目確認（AC-004）：若有衝突 submit 前阻擋 + 紅色 alert + 需勾選「已知風險，繼續」
 // - 鍵盤 / 螢幕閱讀器：aria-live, role, label
 // - useReducer 管理 draft state，可由測試獨立驅動
