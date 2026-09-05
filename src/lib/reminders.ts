@@ -4,6 +4,7 @@
 import type { Customer } from './customers';
 import type { Treatment, TreatmentCategory } from './treatments';
 import { lastTreatment, suggestRecallDays } from './treatments';
+import type { FunnelStage } from './funnel';
 
 export interface Reminder {
   customerId: string;
@@ -23,6 +24,13 @@ export interface Reminder {
   overrideAt?: string;
   overriddenBy?: string;
   overrideReason?: string;
+  /**
+   * 回流漏斗階段（FR-008）。
+   * - 由 contactLog / apptLog 推導，非持久化欄位
+   * - 留 optional 以維持向後相容（既有 test 仍 PASS）
+   * - Dashboard 漏斗 tab 計算後填入，不污染 computeReminder 既有路徑
+   */
+  funnelStage?: FunnelStage;
 }
 
 export interface OverrideOptions {

@@ -10,6 +10,7 @@ import { buildBroadcast, selectByConsent, approve, BUILTIN_TEMPLATES, type Broad
 import { exportEncrypted, decryptEncrypted, EXPORT_FILE_EXTENSION, InvalidPassphraseError, type ExportPayload } from '@/lib/export';
 import { purgeAllData, PURGE_EVENT_NAME, type PurgeTombstoneEvent } from '@/lib/delete';
 import AddTreatmentSheet from '@/components/AddTreatmentSheet';
+import { markContacted, markBooked, getFunnelStage, contactLogsFor, apptLogsFor, type ContactLog, type AppointmentLog } from '@/lib/funnel';
 
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({ id: 'c1', name: '雅婷', phone: '0911111111', consent: 'granted', tags: ['VIP'] }),
@@ -28,7 +29,7 @@ const SEED_TREATMENTS: Treatment[] = [
 export default function Dashboard() {
   const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS);
   const [treatments, setTreatments] = useState<Treatment[]>(SEED_TREATMENTS);
-  const [tab, setTab] = useState<'overview' | 'customers' | 'reminders' | 'analytics' | 'broadcast'>('overview');
+  const [tab, setTab] = useState<'overview' | 'customers' | 'reminders' | 'analytics' | 'broadcast' | 'funnel'>('overview');
   const [hydrated, setHydrated] = useState(false);
   // FR-005 / AC-007：本機追蹤哪些 broadcast target 已 approved
   // （示範用 — 真實情境會由 store / 後端維護）
@@ -46,6 +47,10 @@ export default function Dashboard() {
   // FR-010：最近一次 AddTreatmentSheet 提交的 performedAt + designerId
   // 給「覆寫回訪日」按鈕取代 Round 1 留下的 hardcode 使用
   const [lastSubmission, setLastSubmission] = useState<{ performedAt: string; designerId: string } | null>(null);
+  // FR-008：回流漏斗手動標記紀錄（聯絡 + 預約）
+  // 與 reminders 平行存在；不污染 computeReminder 既有路徑
+  const [contactLogs, setContactLogs] = useState<ContactLog[]>([]);
+  const [apptLogs, setApptLogs] = useState<AppointmentLog[]>([]);
 
   useEffect(() => setHydrated(true), []);
 
@@ -161,6 +166,40 @@ export default function Dashboard() {
     setExportMsg(`✓ 已新增服務：${treatment.serviceName}（${treatment.category}，NT$ ${treatment.price}）`);
   };
 
+  // FR-008：設計師手動標記已聯絡
+  const handleMarkContacted = (customerId: string, outcome: 'connected' | 'no-answer' | 'left-message' | 'booked' | 'declined') => {
+    try {
+      const next = markContacted(contactLogs, {
+        customerId,
+        channel: 'in-person',
+        outcome,
+        designerId: lastSubmission?.designerId ?? 'designer-local',
+      });
+      setContactLogs(next);
+      const c = customers.find((x) => x.id === customerId);
+      setExportMsg(`✓ 已標記 ${c?.name ?? customerId} 為「已聯絡」（${outcome}）`);
+    } catch (err) {
+      setExportMsg(`標記失敗：${(err as Error).message}`);
+    }
+  };
+
+  // FR-008：設計師手動標記已預約（排程時間 = 14 天後為預設）
+  const handleMarkBooked = (customerId: string) => {
+    try {
+      const scheduledFor = new Date(Date.now() + 14 * 86_400_000).toISOString();
+      const next = markBooked(apptLogs, {
+        customerId,
+        scheduledFor,
+        designerId: lastSubmission?.designerId ?? 'designer-local',
+      });
+      setApptLogs(next);
+      const c = customers.find((x) => x.id === customerId);
+      setExportMsg(`✓ 已標記 ${c?.name ?? customerId} 為「已預約」（${scheduledFor.slice(0, 10)}）`);
+    } catch (err) {
+      setExportMsg(`標記失敗：${(err as Error).message}`);
+    }
+  };
+
   if (!hydrated) return <span role="status" aria-live="polite" style={{ padding: 24, display: 'block' }}>載入中…</span>;
 
   const overdue = listOverdue(customers, treatments, new Date());
@@ -206,7 +245,7 @@ export default function Dashboard() {
       )}
 
       <nav style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        {(['overview', 'customers', 'reminders', 'analytics', 'broadcast'] as const).map((k) => (
+        {(['overview', 'customers', 'reminders', 'analytics', 'broadcast', 'funnel'] as const).map((k) => (
           <button
             key={k}
             type="button"
@@ -214,7 +253,7 @@ export default function Dashboard() {
             className={tab === k ? 'primary' : ''}
             onClick={() => setTab(k)}
           >
-            {({ overview: '總覽', customers: '客戶檔案', reminders: '回訪提醒', analytics: '消費分析', broadcast: '行銷推播' } as Record<typeof k, string>)[k]}
+            {({ overview: '總覽', customers: '客戶檔案', reminders: '回訪提醒', analytics: '消費分析', broadcast: '行銷推播', funnel: '回流漏斗' } as Record<typeof k, string>)[k]}
           </button>
         ))}
       </nav>
@@ -439,6 +478,117 @@ export default function Dashboard() {
               );
             })}
           </Card>
+        </section>
+      )}
+
+      {tab === 'funnel' && (
+        <section>
+          <p style={{ color: '#6b4a45', fontSize: 13, marginBottom: 12 }}>
+            FR-008 回流漏斗：三階段手動標記（不自動化 — 避免被誤判為自動行銷）
+          </p>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {(['due', 'contacted', 'booked'] as const).map((col) => {
+              const colCustomers = customers.filter((c) => {
+                const reminder = computeReminder(c, treatments);
+                const stage = getFunnelStage(
+                  reminder,
+                  contactLogsFor(contactLogs, c.id),
+                  apptLogsFor(apptLogs, c.id),
+                );
+                return stage === col;
+              });
+              const colTitle = {
+                due: '① 應回訪',
+                contacted: '② 已聯絡',
+                booked: '③ 已預約',
+              }[col];
+              const colHint = {
+                due: '尚未聯絡 / 尚未預約',
+                contacted: '已打電話 / 傳訊，但還沒約到時間',
+                booked: '已安排下次預約',
+              }[col];
+              return (
+                <div
+                  key={col}
+                  data-testid={`funnel-col-${col}`}
+                  style={{
+                    background: '#fff',
+                    border: '1px solid #f0d8d2',
+                    borderRadius: 8,
+                    padding: 12,
+                  }}
+                >
+                  <h3 style={{ fontSize: 15, color: '#a04030', marginBottom: 4 }}>{colTitle}（{colCustomers.length}）</h3>
+                  <p style={{ fontSize: 11, color: '#6b4a45', marginBottom: 8 }}>{colHint}</p>
+                  {colCustomers.length === 0 ? (
+                    <p style={{ fontSize: 12, color: '#a0a0a0' }}>— 無客戶 —</p>
+                  ) : (
+                    colCustomers.map((c) => {
+                      const reminder = computeReminder(c, treatments);
+                      const lastT = treatments.find((t) => t.id === reminder.lastTreatmentId);
+                      return (
+                        <div
+                          key={c.id}
+                          data-testid={`funnel-card-${col}-${c.id}`}
+                          style={{
+                            borderTop: '1px dashed #d6c5c1',
+                            paddingTop: 8,
+                            marginTop: 8,
+                          }}
+                        >
+                          <p style={{ fontSize: 14, fontWeight: 600, color: '#3a2a28' }}>{c.name}</p>
+                          <p style={{ fontSize: 11, color: '#6b4a45' }}>
+                            {lastT ? `${lastT.serviceName} @ ${lastT.performedAt.slice(0, 10)}` : '— 尚無療程 —'}
+                          </p>
+                          <p style={{ fontSize: 11, color: '#6b4a45' }}>
+                            建議回訪：{reminder.suggestedRecallAt}（{reminder.daysUntilRecall >= 0 ? `還有 ${reminder.daysUntilRecall} 天` : `已過 ${-reminder.daysUntilRecall} 天`}）
+                          </p>
+                          <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
+                            {col === 'due' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkContacted(c.id, 'connected')}
+                                  style={{ fontSize: 12, padding: '4px 8px' }}
+                                >
+                                  📞 標記已聯絡
+                                </button>
+                              </>
+                            )}
+                            {col === 'contacted' && (
+                              <button
+                                type="button"
+                                onClick={() => handleMarkBooked(c.id)}
+                                style={{ fontSize: 12, padding: '4px 8px' }}
+                              >
+                                📅 標記已預約（+14 天）
+                              </button>
+                            )}
+                            {col === 'booked' && (() => {
+                              const appt = apptLogsFor(apptLogs, c.id).find(
+                                (a) => new Date(a.scheduledFor).getTime() > Date.now(),
+                              );
+                              return appt ? (
+                                <p style={{ fontSize: 11, color: '#3a7a3a' }}>
+                                  ✓ {appt.scheduledFor.slice(0, 10)} by {appt.designerId}
+                                </p>
+                              ) : null;
+                            })()}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 
