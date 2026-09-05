@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.3.0 — 2026-09-05 (round 2: 補 audit gap, part 2)
+
+對應 commits `62b15a1` ~ `fd5055d`（見 git log）。
+範圍：依 `docs/AUDIT_v1.md` §6 拆法的 Commit 2 + 3，修 §5 高優先 + 中優先區段中：
+- FR-009 / AC-010（本地加密匯出 + 刪除 + 裝置警告）— 從 FAIL 修到 PASS
+- FR-010 / AC-002-UI / AC-003 / AC-004（手機新增表單 + 單手 UI + 過敏醒目確認）— 從 FAIL / PARTIAL 修到 PASS
+
+### Added
+- `src/lib/export.ts`：Web Crypto (PBKDF2 SHA-256 200k iter + AES-GCM 256) 加密工具（FR-009 / AC-010）
+  - `encryptToExport(payload, passphrase, opts?)` 回傳 `EncryptedExport` 物件（magic + schemaVersion + kdf + base64 iv/salt/ciphertext）
+  - `exportEncrypted(payload, passphrase, opts?)` 將 `EncryptedExport` 包成 Blob（給瀏覽器下載 / localStorage 寫入用）
+  - `decryptEncrypted(blobOrObj, passphrase, opts?)` 還原；passphrase 錯誤或檔案被竄改 throw `InvalidPassphraseError`，格式錯誤 throw `ExportFormatError`
+  - 純函式 `generateSalt()` / `generateIv()`（random 16 / 12 bytes）
+  - 常數 `EXPORT_MAGIC = 'BEAUTY-CRM-EXPORT-V1'`、`EXPORT_SCHEMA_VERSION = 1`、`EXPORT_FILE_EXTENSION = '.beauty-crm.json'`、`EXPORT_KDF_ITERATIONS = 200_000`
+- `src/lib/delete.ts`：資料刪除 + tombstone（FR-009 / AC-010）
+  - `purgeAllData({ resetFn, scopes?, reason? }, now?)` 執行 reset + dispatch `beauty-crm:purge` 事件 + 回傳 `PurgeResult { wipedAt, tombstoneId, wipedScopes }`
+  - `confirmPurgeWithGracePeriod(hours = 24, now?)` 計算未來排程時間（給 round 3 管理員強制路徑）
+  - `generateTombstoneId(now?)` 純函式產生 `tomb-<ISO>-<random>` 字串
+  - `dispatchTombstone(event)` 廣播 CustomEvent（瀏覽器 / SSR safe）
+  - `setDispatchTarget(target)` 測試注入：替換 EventTarget（不依賴 window 在 node env）
+- `src/lib/responsive.ts`：RWD 斷點工具
+  - `getLayoutMode(width, bp?)` → `'bottom-sheet' | 'centered-modal'`
+  - `isSingleHandUi(width, bp?)` → `< mobile = true`
+  - `getSheetMaxWidth(mode, viewportWidth)` → `'100%' | 固定 560px`
+  - `DEFAULT_BREAKPOINTS` 對齊 SPEC DoD-6（mobile 480 / tablet 900）
+- `src/components/AddTreatmentSheet.tsx`：手機單手快速新增 modal（FR-010 / AC-002-UI / AC-004）
+  - mobile-first：< 480px bottom sheet（單手可達，CTA 置底放大）+ >= 900px centered modal
+  - `useReducer` 管理 draft（`AddTreatmentDraft`），reducer `addTreatmentReducer` 純函式可獨立測
+  - 5 大類別 preset 快捷鈕（manicure / eyelash / skincare / hair）套預設服務名 + 價格 + 時長
+  - 客戶欄位 autofocus + datalist 搜尋
+  - 過敏醒目確認（AC-004）：submit 前 `hasAllergyConflict` 偵測 → 紅色 alert (role=alert) 列衝突成分 + 需勾「已知風險，繼續」
+  - 必填驗證：customerId / serviceName / price>0 / durationMin>0，缺漏 submit disabled
+  - a11y：role=dialog aria-modal=true aria-labelledby + aria-required + aria-label
+  - `data-viewport-mode` / `data-single-hand` 屬性供測試 hook
+- `src/components/Dashboard.tsx`：
+  - 總覽 tab：「⚠ 裝置共用警告」橫幅（localStorage `device.shared` flag 控制，預設顯示）
+  - 總覽 tab：「📦 資料管理」卡片（📤 加密匯出 / 📥 還原備份 / 🗑 刪除所有資料 三鈕，雙重 confirm 防誤觸）
+  - 總覽 tab：「快速操作」卡片：＋ 新增服務紀錄按鈕
+  - 監聽 `beauty-crm:purge` 事件，更新 `lastPurge` 狀態顯示 tombstone
+  - 替換 Round 1 hardcode `Dashboard.tsx:121-125`：`'2026-08-15T00:00:00.000Z'` → 客戶 lastTreatment.performedAt + suggestRecallDays(category) 計算；`'designer-local'` → lastSubmission.designerId
+- `tests/export.test.ts`（11 個 AC：round-trip / 錯誤 passphrase / 空資料 / 缺 passphrase / 竄改 ciphertext / 壞 magic / 壞 schema / 純函式隨機性 / 同 data 兩次加密差異 / 副檔名常數）
+- `tests/delete.test.ts`（8 個 AC：purgeAllData 回傳 / 預設 4 scopes / dispatch 事件監聽 / 24h grace / 自訂小時 / 負數 throw / tombstoneId 格式 / SSR-safe no-op）
+- `tests/addTreatment.test.tsx`（14 個 AC：reducer 5 + SSR markup 8 + recordTreatment 串接 1，用 react-dom/server 不依賴 RTL/jsdom）
+- `tests/responsive.test.ts`（10 個 AC：getLayoutMode 三段 / isSingleHandUi / getSheetMaxWidth 兩種 / DEFAULT_BREAKPOINTS 對齊 SPEC DoD-6）
+
+### Changed
+- `vitest.config.ts`：`include` 從 `tests/**/*.test.ts` 擴充為 `tests/**/*.test.{ts,tsx}`（讓 `.tsx` 測試被 vitest 抓取）
+- `src/components/Dashboard.tsx`：SEED_CUSTOMERS / SEED_TREATMENTS 改用 `useState`（讓 purgeAllData 可清空）
+- `src/components/Dashboard.tsx`：「覆寫回訪日」按鈕 hardcode 改為資料驅動計算（見 Added 段說明）
+
+### Deferred (out of round 2，留給 round 3)
+- FR-008 / AC：回流漏斗手動標記（ContactLog / AppointmentLog + markContacted/markBooked）
+- FR-006 / AC-009：VIP 觸發原因顯示（`tierReason` util + Dashboard reason 文字）
+- Gate-1：Privacy / Terms / Contact 頁面
+- Gate-2：監控告警 + rollback RUNBOOK
+- DoD-3 / DoD-10 / Gate-4 / Gate-5：owner 動作（pilot 啟動、文件簽署，非技術）
+
+### Verified
+- `npm test` → 115 passed (was 72, +43 — 11 export + 8 delete + 14 addTreatment + 10 responsive)
+- `npm run build` → exit 0
+- `npm run lint` → 0 errors（1 warning 在 `eslint.config.mjs` 自身，非 user code）
+- `git diff fix/v0.3.0-round1..fix/v0.3.0-round2 -- PRD/` → 0 lines（SPEC §1-§9 未動 ✓）
+- `git diff fix/v0.3.0-round1..fix/v0.3.0-round2 -- package.json package-lock.json` → 0 lines（無新 dep ✓）
+
+---
+
 ## v0.3.0 — 2026-09-05 (round 1: 補 audit gap)
 
 對應 commits `f371156` ~ `9ee8c1d`（見 git log）。
