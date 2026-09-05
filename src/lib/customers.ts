@@ -31,6 +31,14 @@ export interface Customer {
   notes?: string;
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
+  /**
+   * 樂觀鎖版本（DoD-8：成本/事件/版本/決策 可由 maintainer 追查）。
+   * - 從 Prisma schema 對齊（SPEC §4.3）
+   * - 預設 1；updateCustomer 自動 +1
+   * - 衝突時（多人編輯）由呼叫端決定是否 throw，
+   *   此 util 本身只負責 bump
+   */
+  version: number;
 }
 
 export function createCustomer(input: {
@@ -64,16 +72,18 @@ export function createCustomer(input: {
     notes: input.notes,
     createdAt: now,
     updatedAt: now,
+    version: 1,
   };
 }
 
 export function updateCustomer(
   c: Customer,
-  patch: Partial<Omit<Customer, 'id' | 'createdAt'>>,
+  patch: Partial<Omit<Customer, 'id' | 'createdAt' | 'version'>>,
 ): Customer {
   return {
     ...c,
     ...patch,
+    version: c.version + 1,
     updatedAt: new Date().toISOString(),
   };
 }

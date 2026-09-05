@@ -37,6 +37,22 @@ describe('customers — 客戶檔案 domain', () => {
     expect(u.updatedAt).not.toBe(c.updatedAt);
   });
 
+  it('AC: updateCustomer 自動 bump version（DoD-8 樂觀鎖）', () => {
+    const c = createCustomer({ id: 'c1', name: 'A', phone: '0912345678' });
+    expect(c.version).toBe(1);
+    const u1 = updateCustomer(c, { notes: 'first' });
+    expect(u1.version).toBe(2);
+    const u2 = updateCustomer(u1, { notes: 'second' });
+    expect(u2.version).toBe(3);
+    // 不可變：原 customer 仍 version=1
+    expect(c.version).toBe(1);
+  });
+
+  it('AC: createCustomer 預設 version = 1', () => {
+    const c = createCustomer({ id: 'c1', name: 'A', phone: '0912345678' });
+    expect(c.version).toBe(1);
+  });
+
   it('AC: isMarketingReachable 只在 consent=granted 為 true', () => {
     const a = createCustomer({ id: 'c1', name: 'A', phone: '0912345678', consent: 'granted' });
     const b = createCustomer({ id: 'c2', name: 'B', phone: '0912345678', consent: 'pending' });

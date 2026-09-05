@@ -2,6 +2,7 @@
 // Each treatment captures what service was done, when, who, price.
 
 import type { CompressedPhotoRef } from './photos';
+import { logEvent } from './audit';
 
 export type TreatmentCategory =
   | 'manicure' // 美甲
@@ -25,6 +26,14 @@ export interface Treatment {
    * 透過 `addPhoto()` 加入，永遠不可變（spread 新陣列）。
    */
   photos: CompressedPhotoRef[];
+  /**
+   * 樂觀鎖版本（DoD-8：成本/事件/版本/決策 可由 maintainer 追查）。
+   * 與 Customer.version 對齊。
+   * 對已存在 treatment 做後續操作（如 addPhoto）時不 bump —
+   * 該欄位追蹤「資料的單一寫入版本」，附加照片屬於資料累積，
+   * 不是替換主要欄位。
+   */
+  version: number;
 }
 
 export interface TreatmentDraft {
@@ -49,7 +58,7 @@ export function recordTreatment(draft: TreatmentDraft): Treatment {
   if (draft.durationMin <= 0) throw new Error('durationMin must be > 0');
   const performed = new Date(draft.performedAt);
   if (Number.isNaN(performed.getTime())) throw new Error('invalid performedAt');
-  return {
+  const treatment: Treatment = {
     id: draft.id.trim(),
     customerId: draft.customerId,
     category: draft.category,
@@ -61,7 +70,20 @@ export function recordTreatment(draft: TreatmentDraft): Treatment {
     designerId: draft.designerId,
     notes: draft.notes,
     photos: draft.photos ? [...draft.photos] : [],
+    version: 1,
   };
+  // DoD-8：每次 recordTreatment 同步上報 audit event
+  logEvent(
+    'treatment.recorded',
+    {
+      treatmentId: treatment.id,
+      customerId: treatment.customerId,
+      category: treatment.category,
+      price: treatment.price,
+    },
+    treatment.designerId ?? 'designer-local',
+  );
+  return treatment;
 }
 
 export function treatmentsByCustomer(

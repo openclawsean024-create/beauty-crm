@@ -5,7 +5,7 @@ import { createCustomer, type Customer } from '@/lib/customers';
 import { recordTreatment, type Treatment, suggestRecallDays } from '@/lib/treatments';
 import { computeReminder, listOverdue, setOverride, type Reminder, type OverrideOptions } from '@/lib/reminders';
 import { computeRevenueByMonth, topSpenders } from '@/lib/analytics';
-import { tierForSpend } from '@/lib/tiers';
+import { tierForSpend, tierReason, nextTier as tierNext } from '@/lib/tiers';
 import { buildBroadcast, selectByConsent, approve, BUILTIN_TEMPLATES, type BroadcastTarget } from '@/lib/broadcast';
 import { exportEncrypted, decryptEncrypted, EXPORT_FILE_EXTENSION, InvalidPassphraseError, type ExportPayload } from '@/lib/export';
 import { purgeAllData, PURGE_EVENT_NAME, type PurgeTombstoneEvent } from '@/lib/delete';
@@ -350,11 +350,18 @@ export default function Dashboard() {
           {customers.map((c) => {
             const myTxs = treatments.filter((t) => t.customerId === c.id);
             const last = myTxs[0];
+            const totalSpent = myTxs.reduce((s, t) => s + t.price, 0);
+            const tier = tierForSpend(totalSpent);
+            const next = tierNext(totalSpent);
+            const reason = tierReason(tier, totalSpent, next);
             return (
               <Card key={c.id} title={`${c.name} (${c.phone})`}>
                 <p>同意狀態：<b>{c.consent}</b>　標籤：{c.tags.join(' / ') || '—'}</p>
                 <p>最後療程：{last ? `${last.serviceName} @ ${last.performedAt.slice(0, 10)}` : '—'}</p>
-                <p>累計消費：NT$ {myTxs.reduce((s, t) => s + t.price, 0).toLocaleString()}</p>
+                <p>累計消費：NT$ {totalSpent.toLocaleString()}</p>
+                <p style={{ fontSize: 12, color: '#6b4a45' }}>
+                  {reason}
+                </p>
               </Card>
             );
           })}
@@ -426,10 +433,13 @@ export default function Dashboard() {
             {spenders.map((s) => {
               const c = customers.find((x) => x.id === s.customerId)!;
               const tier = tierForSpend(s.totalSpent);
+              const next = tierNext(s.totalSpent);
+              const reason = tierReason(tier, s.totalSpent, next);
               return (
-                <p key={s.customerId}>
-                  {c.name} — NT$ {s.totalSpent.toLocaleString()}（{tier.label}，共 {s.visitCount} 次）
-                </p>
+                <div key={s.customerId} style={{ marginBottom: 4 }}>
+                  <p>{c.name} — NT$ {s.totalSpent.toLocaleString()}（{tier.label}，共 {s.visitCount} 次）</p>
+                  <p style={{ fontSize: 11, color: '#6b4a45', marginLeft: 8 }}>{reason}</p>
+                </div>
               );
             })}
           </Card>

@@ -6,6 +6,7 @@ import type { Treatment } from './treatments';
 import { lastTreatment, suggestRecallDays } from './treatments';
 import { computeCustomerLTV } from './analytics';
 import { tierForSpend } from './tiers';
+import { logEvent } from './audit';
 
 export type BroadcastChannel = 'sms' | 'line' | 'email';
 
@@ -157,12 +158,20 @@ export function approve(target: BroadcastTarget, designerId: string): BroadcastT
       `approve: cannot approve target in status "${target.status}" (only "draft" is approvable)`,
     );
   }
-  return {
+  const approvedAt = new Date().toISOString();
+  const next: BroadcastTarget = {
     ...target,
     status: 'approved',
     approvedBy: designerId,
-    approvedAt: new Date().toISOString(),
+    approvedAt,
   };
+  // DoD-8：核准動作同步上報 audit
+  logEvent(
+    'broadcast.approved',
+    { customerId: target.customer.id, template: target.reason, approvedAt },
+    designerId,
+  );
+  return next;
 }
 
 /**
@@ -181,11 +190,18 @@ export function markSent(
       `markSent: target must be in "approved" status (current: "${target.status}")`,
     );
   }
-  return {
+  const next: BroadcastTarget = {
     ...target,
     status: 'sent',
     sentAt: sentAt ?? new Date().toISOString(),
   };
+  // DoD-8：實際發送同步上報 audit
+  logEvent(
+    'broadcast.sent',
+    { customerId: target.customer.id, template: target.reason },
+    target.approvedBy ?? 'system',
+  );
+  return next;
 }
 
 /**
@@ -204,6 +220,16 @@ export function recheckConsentBeforeSend(
 ): void {
   const live = currentCustomers.find((c) => c.id === target.customer.id);
   if (live?.consent !== 'granted') {
+    // DoD-8：阻擋發送（recheck 失敗）同步上報 audit
+    logEvent(
+      'broadcast.consentRevoked',
+      {
+        customerId: target.customer.id,
+        targetStatus: target.status,
+        currentConsent: live?.consent ?? 'unknown',
+      },
+      'system',
+    );
     throw new Error(
       `recheckConsentBeforeSend: customer ${target.customer.id} no longer has marketing consent ` +
         `(target status: ${target.status}, current consent: ${live?.consent ?? 'unknown'}). ` +

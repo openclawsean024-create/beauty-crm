@@ -8,6 +8,8 @@
 // 「店主獨立完成」對齊：呼叫端（如 Dashboard）只需呼叫 purgeAllData()，
 // 不用了解 store 結構，purge 函式內部已經處理 reset + tombstone 事件。
 
+import { logEvent } from './audit';
+
 export interface PurgeResult {
   wipedAt: string;
   tombstoneId: string;
@@ -128,6 +130,13 @@ export function purgeAllData(
     wipedScopes,
     detail: targets.reason,
   });
+
+  // 3. DoD-8：purge 動作同步上報 audit（給未來 Sentry / OTel 串接）
+  logEvent(
+    'data.purged',
+    { tombstoneId, wipedScopes, reason: targets.reason ?? 'unspecified' },
+    'designer-manual',
+  );
 
   return { wipedAt, tombstoneId, wipedScopes };
 }

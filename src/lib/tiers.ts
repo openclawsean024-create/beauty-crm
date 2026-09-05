@@ -86,3 +86,37 @@ export function applyDiscount(price: number, tier: TierRule): number {
   if (price < 0) throw new Error('price cannot be negative');
   return Math.round(price * (1 - tier.discount));
 }
+
+/**
+ * VIP 觸發原因（FR-006 / AC-009）。
+ *
+ * 把「為什麼是這個 tier」變成可讀字串，給 Dashboard / 對客溝通用。
+ * 不是黑箱 badge — owner 與客戶都能理解。
+ *
+ * 規則（對齊 SPEC §1.5 Non-Goals 與 SPEC §3.1 FR-006）：
+ * - 必含累計金額（NT$） + 該 tier 的 label  + 門檻
+ * - 有 nextTier 時附「差 NT$xx 升 {nextLabel}」，給升級提醒
+ * - 無 nextTier（已是最高）只顯示「已是 {label}」
+ *
+ * 純函數：給定 tier + 累計 + 下一階，回傳單一字串；不修改輸入。
+ */
+export function tierReason(
+  tier: TierRule,
+  totalSpent: number,
+  nextTier?: TierRule,
+  locale: string = 'zh-TW',
+): string {
+  if (totalSpent < 0) {
+    throw new Error('tierReason: totalSpent cannot be negative');
+  }
+  const formatter = new Intl.NumberFormat(locale);
+  const spentStr = formatter.format(totalSpent);
+  const thresholdStr = formatter.format(tier.minSpend);
+
+  if (!nextTier) {
+    return `累計 NT$${spentStr}，已是 ${tier.label}（最高等級）`;
+  }
+  const diff = Math.max(0, nextTier.minSpend - totalSpent);
+  const diffStr = formatter.format(diff);
+  return `累計 NT$${spentStr} 達到 ${tier.label}（門檻 NT$${thresholdStr}，差 NT$${diffStr} 升 ${nextTier.label}）`;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tierForSpend, nextTier, progressToNextTier, applyDiscount, DEFAULT_TIER_RULES } from '@/lib/tiers';
+import { tierForSpend, nextTier, progressToNextTier, applyDiscount, tierReason, DEFAULT_TIER_RULES } from '@/lib/tiers';
 
 describe('tiers — 會員分級', () => {
   it('AC: 累計 0 → standard', () => {
@@ -51,5 +51,44 @@ describe('tiers — 會員分級', () => {
   it('AC: applyDiscount 負數 throw', () => {
     const silver = DEFAULT_TIER_RULES.find((r) => r.tier === 'silver')!;
     expect(() => applyDiscount(-100, silver)).toThrow();
+  });
+
+  // AC-009：VIP 觸發原因（不是黑箱 badge）
+  it('AC-009: silver at 6,000 → reason 含「5,000」與「銀卡」', () => {
+    const silver = DEFAULT_TIER_RULES.find((r) => r.tier === 'silver')!;
+    const gold = DEFAULT_TIER_RULES.find((r) => r.tier === 'gold')!;
+    const reason = tierReason(silver, 6000, gold);
+    expect(reason).toContain('5,000');
+    expect(reason).toContain('銀卡');
+    expect(reason).toContain('6,000');
+  });
+
+  it('AC-009: silver at 6,000 → 顯示差 NT$ 14,000 升 金卡會員', () => {
+    const silver = DEFAULT_TIER_RULES.find((r) => r.tier === 'silver')!;
+    const gold = DEFAULT_TIER_RULES.find((r) => r.tier === 'gold')!;
+    const reason = tierReason(silver, 6000, gold);
+    expect(reason).toContain('14,000');
+    expect(reason).toContain('金卡');
+  });
+
+  it('AC-009: 已是 black（最高）→ 不附升級字串', () => {
+    const black = DEFAULT_TIER_RULES.find((r) => r.tier === 'black')!;
+    const reason = tierReason(black, 100000, undefined);
+    expect(reason).toContain('黑卡');
+    expect(reason).not.toContain('差 NT$');
+    expect(reason).toContain('100,000');
+  });
+
+  it('AC-009: standard at 0 → reason 含「一般會員」', () => {
+    const standard = DEFAULT_TIER_RULES.find((r) => r.tier === 'standard')!;
+    const silver = DEFAULT_TIER_RULES.find((r) => r.tier === 'silver')!;
+    const reason = tierReason(standard, 0, silver);
+    expect(reason).toContain('一般會員');
+    expect(reason).toContain('銀卡');
+  });
+
+  it('AC-009: tierReason 負數 throw', () => {
+    const silver = DEFAULT_TIER_RULES.find((r) => r.tier === 'silver')!;
+    expect(() => tierReason(silver, -100)).toThrow();
   });
 });
