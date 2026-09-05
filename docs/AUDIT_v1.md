@@ -176,6 +176,20 @@
 
 > 「不把 sweet spot 假設當成事實；v0.3.0 technical gap 與市場驗證（§11 pilot）需分開追蹤。」
 
-- 簽署人：________________
-- 日期：________________
+- 簽署人：________________（owner 簽署：Sean Li）
+- 日期：________________（owner 填入實際日期）
 - 備註：________________
+
+### Round 3 補位說明
+
+v0.3.0 round 3 commit `fix/v0.3.0-round3` 補齊以下技術項目，把對應的上線閘門技術條件推到可驗證狀態：
+
+- **Gate-1**：新增 `src/app/privacy/page.tsx`、`/terms/page.tsx`、`/contact/page.tsx` 三個靜態頁面
+  （技術已完成；owner 真實聯絡資訊待 owner 替換 placeholder）
+- **Gate-2**：新增 `docs/RUNBOOK.md` 涵蓋匯出失敗、刪除卡住、provider 失敗降級、
+  CI 紅燈、audit log 查詢
+- **DoD-1**：新增 `docs/AC_MAPPING.md` 對照表
+- **Gate-5**：本節為 owner 簽署區的技術檔建立；真實簽署為 owner 動作（見下方 deferred）
+
+> 此區段為技術檔的「佔位」（technical placeholder），**不是 owner 真實簽署**。
+> 真正的 owner 簽署需由 Sean 本人在上線前填入。
