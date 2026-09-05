@@ -1,5 +1,109 @@
 # Changelog
 
+## v0.4.0 — 2026-09-05 (UI redesign + design system + localStorage)
+
+對應 commits `979af11` ~ `dc4c525`（見 git log）。
+範圍：依 `docs/DESIGN_v0.4.0.md` 完整實作 v0.4.0 — design system + UI 元件庫 + AppShell + 7 個 admin page 重做 + 設定頁 + localStorage 持久化 + landing + pricing + Vercel deploy 設定。
+
+### Design System（commit 1）
+- `src/app/globals.css` 重寫成 7 個 section 的 CSS variable 設計系統
+  - §1.1 Color（背景 / 文字 / accent / border / status / sidebar / gradient，共 30+ token）
+  - §1.2 Typography（font stack + 9 級 type scale）
+  - §1.3 Spacing（8 級 4–64px）
+  - §1.4 Border Radius（5 級 4–full）
+  - §1.5 Shadow（4 級 sm/md/lg/sheet）
+  - §1.6 Z-index（7 級）
+  - §1.7 Motion（3 duration + 1 ease）
+  - §2.1 Breakpoints（sm 480 / md 768 / lg 1024 / xl 1440）
+- 保留 v0.3.0 legacy token 相容（`--accent-primary-legacy: #a04030`）
+- `src/app/layout.tsx` 用 `next/font/google` 載入 Noto Sans TC（不裝新 dep，自動 self-host）
+
+### UI Component Library（commit 2）
+- 11+ 個元件在 `src/components/ui/`：
+  - Card（variant: default | image | stat）
+  - Button（variant: primary | secondary | ghost | danger | icon-only；size: sm | md | lg）
+  - Input / Textarea / Select（含 label / error / hint / required）
+  - Badge（6 variant × 2 size）
+  - Avatar（4 size + 5 色 hash fallback）
+  - Modal（desktop 中心 + ESC 關閉）
+  - Sheet（mobile bottom sheet + handle bar）
+  - Toast（Provider + `toast.success/error/info/warning()` + 全域 CustomEvent）
+  - ProgressBar（3 variant：default | success | tier 漸層）
+  - EmptyState
+  - Skeleton（pulse 動畫 + count 多條）
+  - Icon（14 個 inline SVG，**抄自 Lucide MIT**，不裝 `lucide-react`）
+- `tests/components/` 75 個 AC：每個元件 render + 互動測試
+- ARIA：所有 interactive 元素有 `aria-label` / `aria-current` / `aria-pressed` / `aria-busy` / `aria-invalid`
+
+### AppShell + Routing（commit 3）
+- `AppShell` + `Sidebar`（desktop 240px）+ `Header` + `MobileBottomNav`（5 tab）+ `MobileDrawer`（漢堡從左滑入）
+- 響應式：≥1024px 顯示 sidebar，<768px 顯示 bottom nav + drawer
+- 7 個 admin page 從既有 Dashboard 6-tab 拆出：
+  - `/dashboard`（首頁 / greeting + 重點）
+  - `/customers`（客戶檔案 + 搜尋 + 排序）
+  - `/reminders`（回訪提醒 + 4 種 filter）
+  - `/analytics`（月營收 / Top 3 / Tier 分佈 / 回購率）
+  - `/broadcast`（草稿 + 人工核准）
+  - `/funnel`（3 階段手動標記）
+  - `/settings`（v0.4.0 新增：資料管理 + 裝置警告 toggle + 方案 + 法務）
+- 用 Next.js route group `(admin)/` 集中 AppShell + state（`AdminDataProvider`）
+- `useAdminHandlers` 集中 6 個 handler（export / import / purge / markContacted / markBooked / override）
+- 移除 `src/components/Dashboard.tsx`（6-tab useState 改用 router 切換）
+
+### localStorage Persistence（commit 4）
+- `src/lib/storage.ts`：typed wrapper，**SSR-safe**（先檢查 `isClient()`）
+  - `load<T>()` / `save<T>()` / `clear()` / `clearAll()`
+  - `PREFIX = 'beauty-crm:v1:'`（v2 schema break 改 `v2:` 自動清空）
+  - `StorageKeys` 7 個常數 + `StorageKey` union type
+  - quota exceeded / JSON 損壞 silent fail
+- `AdminDataProvider`：7 對 useEffect（mount load + 每次 state 變動 save）
+- `reset()` 整合 `clearAll()`（purge 流程一次清乾淨）
+- `tests/storage.test.ts` 14 個 AC：缺值 / 損壞 JSON / SSR / quota / 7 key 常數
+
+### Landing + Pricing（commit 5）
+- `/` 改為公開 landing（DESIGN §7.1）
+  - Hero：記得客戶做過什麼 / 多久該回來 / 不打擾追蹤
+  - 2 CTA：免費試用 50 位客戶 / 查看方案
+  - 3 個 feature card：療程回流 / 過敏偏好 / 草稿核准
+  - 4 個 tier 簡介 + footer（Privacy / Terms / Contact / Pricing）
+- `/pricing` 公開定價（DESIGN §7.2）
+  - 4 個 pricing card：免費 / 設計師 299 ⭐ / 工作室 799 / 品牌 2499
+  - 5 題 FAQ
+  - popular tier 用 accent border + 熱門 ⭐ badge
+- 風格：跟 admin 一致，landing 用 `--text-display` 32px hero
+- 對齊 SPEC §9.1 變現方案
+
+### Deploy + 設定（commit 6）
+- `vercel.json`：framework=nextjs / buildCommand / outputDirectory
+- `README.md` 加「Deploy to Vercel」7 步驟段
+- `.gitignore` 確認 `.next/` + `node_modules/` 都有
+- `tests/deploy.test.ts` 6 個 AC（valid JSON + 必要欄位 + .gitignore 包含）
+
+### Files 統計
+- 新檔 28 個：design system 1 + ui 元件 13 + AppShell 5 + admin 2 + pages 8 + storage 1
+- 改檔 4 個：globals.css、layout.tsx、page.tsx（→ landing）、Dashboard.tsx（刪除）
+- 測試 +94 個：75 component + 14 storage + 6 deploy
+- 0 個新 dep（lucide-react 拒裝 / next/font 用 framework 內建）
+- 0 個 `any` type
+- 沒改 `PRD/SPEC.md` §1-§9
+
+### Verified
+- `npm test` → 256 passed（was 162，+94 — 75 component + 14 storage + 6 deploy，扣 1 pages test 因 §7 改無 landing 但 pages test 仍涵蓋 privacy/terms/contact）
+- `npm run build` → exit 0（11 個路由：/、/pricing、/dashboard、/customers、/reminders、/analytics、/broadcast、/funnel、/settings、/privacy、/terms、/contact、/_not-found）
+- `npm run lint` → 0 errors（1 warning 在 `eslint.config.mjs` 自身，非 user code）
+- `git diff fix/v0.3.0-round3..fix/v0.4.0-ui-redesign -- PRD/` → 0 lines（SPEC §1-§9 未動 ✓）
+- `git diff fix/v0.3.0-round3..fix/v0.4.0-ui-redesign -- package.json package-lock.json` → 0 lines（無新 dep ✓）
+
+### Deferred (out of v0.4.0)
+- 密碼保護 localStorage（v2，等 §11 pilot 通過）
+- 多裝置同步 / 多店（v2/v3）
+- 客戶自助填寫表單（v3）
+- 5 位 pilot 訪談 / 同意書（§11 owner 動作）
+- 真實 Lighthouse 跑分（需 npx lighthouse 環境）
+- 公開 landing SEO meta / OG image（v2）
+
+---
+
 ## v0.3.0 — 2026-09-05 (round 3: 補 audit gap, part 3)
 
 對應 commits `ce780fa` ~ `7011856`（見 git log）。
