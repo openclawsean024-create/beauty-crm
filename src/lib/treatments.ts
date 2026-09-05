@@ -1,6 +1,8 @@
 // Beauty CRM — 療程紀錄
 // Each treatment captures what service was done, when, who, price.
 
+import type { CompressedPhotoRef } from './photos';
+
 export type TreatmentCategory =
   | 'manicure' // 美甲
   | 'eyelash' // 美睫
@@ -18,6 +20,11 @@ export interface Treatment {
   performedAt: string; // ISO timestamp
   designerId?: string; // 設計師 ID
   notes?: string;
+  /**
+   * Before/After 照片 reference（FR-007）。
+   * 透過 `addPhoto()` 加入，永遠不可變（spread 新陣列）。
+   */
+  photos: CompressedPhotoRef[];
 }
 
 export interface TreatmentDraft {
@@ -31,6 +38,7 @@ export interface TreatmentDraft {
   performedAt: string;
   designerId?: string;
   notes?: string;
+  photos?: CompressedPhotoRef[];
 }
 
 export function recordTreatment(draft: TreatmentDraft): Treatment {
@@ -52,6 +60,7 @@ export function recordTreatment(draft: TreatmentDraft): Treatment {
     performedAt: draft.performedAt,
     designerId: draft.designerId,
     notes: draft.notes,
+    photos: draft.photos ? [...draft.photos] : [],
   };
 }
 
@@ -81,4 +90,12 @@ const DEFAULT_RECALL_DAYS: Record<TreatmentCategory, number> = {
 
 export function suggestRecallDays(category: TreatmentCategory): number {
   return DEFAULT_RECALL_DAYS[category];
+}
+
+/**
+ * 加入 Before/After 照片到療程（FR-007）。
+ * 純函數：回傳新 Treatment 物件，原 treatment.photos 陣列不變。
+ */
+export function addPhoto(t: Treatment, photo: CompressedPhotoRef): Treatment {
+  return { ...t, photos: [...t.photos, photo] };
 }

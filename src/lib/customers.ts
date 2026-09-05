@@ -3,6 +3,19 @@
 
 export type ConsentStatus = 'granted' | 'pending' | 'revoked';
 
+/**
+ * 照片同意紀錄（FR-007 / AC-005）。
+ * - scope: 同意範圍（before-after 僅療程對比 / marketing 行銷素材 / all 全開）
+ * - revokedAt: 撤回時間，未填 = 仍有效
+ */
+export type PhotoConsentScope = 'before-after' | 'marketing' | 'all';
+
+export interface PhotoConsent {
+  grantedAt: string;
+  scope: PhotoConsentScope;
+  revokedAt?: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
@@ -13,6 +26,8 @@ export interface Customer {
   allergies: string[]; // e.g. ["對甲醛敏感"]
   tags: string[]; // e.g. ["VIP", "新客"]
   consent: ConsentStatus;
+  /** 照片同意（FR-007：Before/After 必須有明確同意紀錄） */
+  photoConsent?: PhotoConsent;
   notes?: string;
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
@@ -93,4 +108,32 @@ export function hasAllergyConflict(
 export function toggleConsent(c: Customer): Customer {
   const next: ConsentStatus = c.consent === 'granted' ? 'revoked' : 'granted';
   return updateCustomer(c, { consent: next });
+}
+
+/**
+ * 設定 / 撤回照片同意（FR-007）。
+ *
+ * 規則：
+ * - 傳入 consent 物件 → 設為該 consent（含 grantedAt、scope；新物件會清掉 revokedAt）
+ * - 傳入 null → 若現有 consent 仍有效（無 revokedAt），把 revokedAt 填上當下時間
+ *                若已經撤回或從未同意 → no-op 回傳原物件
+ *
+ * 純函數：永遠回傳新 Customer 物件（透過 updateCustomer），不 mutate 輸入。
+ */
+export function setPhotoConsent(
+  c: Customer,
+  consent: PhotoConsent | null,
+): Customer {
+  if (consent === null) {
+    if (c.photoConsent && !c.photoConsent.revokedAt) {
+      return updateCustomer(c, {
+        photoConsent: {
+          ...c.photoConsent,
+          revokedAt: new Date().toISOString(),
+        },
+      });
+    }
+    return c;
+  }
+  return updateCustomer(c, { photoConsent: consent });
 }
