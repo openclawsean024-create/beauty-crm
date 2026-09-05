@@ -1,9 +1,11 @@
 // Beauty CRM v0.4.0 — AdminDataProvider
-// 集中 admin 區的 state + 處理（含 localStorage 持久化，commit 4 加）
+// 集中 admin 區的 state + 處理（含 localStorage 持久化）
 // 對齊 DESIGN §6（client-side persistence）
 //
-// 注意：v0.4.0 commit 3 只建容器（state holder + handler API），
-// commit 4 會在這層加 localStorage load/save。
+// v0.4.0 commit 4 加上 localStorage load/save：
+// - 首次 mount：load() 從 localStorage 讀回
+// - state 改變：save() 同步回 localStorage
+// - purge：clearAll() 一次清掉
 
 'use client';
 
@@ -19,6 +21,7 @@ import { recordTreatment, type Treatment } from '@/lib/treatments';
 import type { BroadcastTarget } from '@/lib/broadcast';
 import type { OverrideOptions } from '@/lib/reminders';
 import type { ContactLog, AppointmentLog } from '@/lib/funnel';
+import { load, save, clearAll, StorageKeys } from '@/lib/storage';
 
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({ id: 'c1', name: '雅婷', phone: '0911111111', consent: 'granted', tags: ['VIP'] }),
@@ -76,10 +79,51 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AdminDataState>(SEED);
   const [hydrated, setHydrated] = useState(false);
 
-  // v0.4.0 commit 4 會在這裡加 localStorage load/save
+  // §6.5 載入：useEffect 內從 localStorage 讀，讀完設 hydrated=true
   useEffect(() => {
+    const next: AdminDataState = {
+      customers: load(StorageKeys.customers, SEED_CUSTOMERS),
+      treatments: load(StorageKeys.treatments, SEED_TREATMENTS),
+      approvedTargets: load(StorageKeys.approvedTargets, {}),
+      reminderOverrides: load(StorageKeys.reminderOverrides, {}),
+      deviceShared: load(StorageKeys.deviceShared, true),
+      contactLogs: load(StorageKeys.contactLogs, []),
+      apptLogs: load(StorageKeys.apptLogs, []),
+      lastPurge: null,
+    };
+    setState(next);
     setHydrated(true);
   }, []);
+
+  // §6.5 同步：hydrated 後每次 state 變動都 save 回 localStorage
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.customers, state.customers);
+  }, [state.customers, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.treatments, state.treatments);
+  }, [state.treatments, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.approvedTargets, state.approvedTargets);
+  }, [state.approvedTargets, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.reminderOverrides, state.reminderOverrides);
+  }, [state.reminderOverrides, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.deviceShared, state.deviceShared);
+  }, [state.deviceShared, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.contactLogs, state.contactLogs);
+  }, [state.contactLogs, hydrated]);
+  useEffect(() => {
+    if (!hydrated) return;
+    save(StorageKeys.apptLogs, state.apptLogs);
+  }, [state.apptLogs, hydrated]);
 
   const setCustomers = (next: Customer[]) => setState((p) => ({ ...p, customers: next }));
   const setTreatments = (next: Treatment[]) => setState((p) => ({ ...p, treatments: next }));
@@ -92,7 +136,10 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
   const setContactLogs = (next: ContactLog[]) => setState((p) => ({ ...p, contactLogs: next }));
   const setApptLogs = (next: AppointmentLog[]) => setState((p) => ({ ...p, apptLogs: next }));
   const setLastPurge = (next: AdminDataState['lastPurge']) => setState((p) => ({ ...p, lastPurge: next }));
-  const reset = () => setState(SEED);
+  const reset = () => {
+    clearAll();
+    setState(SEED);
+  };
 
   const api: AdminDataApi = {
     ...state,
