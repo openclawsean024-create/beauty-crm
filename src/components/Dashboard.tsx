@@ -7,6 +7,8 @@ import { computeReminder, listOverdue, setOverride, type Reminder, type Override
 import { computeRevenueByMonth, topSpenders } from '@/lib/analytics';
 import { tierForSpend } from '@/lib/tiers';
 import { buildBroadcast, selectByConsent, approve, BUILTIN_TEMPLATES, type BroadcastTarget } from '@/lib/broadcast';
+import { exportEncrypted, decryptEncrypted, EXPORT_FILE_EXTENSION, InvalidPassphraseError, type ExportPayload } from '@/lib/export';
+import { purgeAllData, PURGE_EVENT_NAME, type PurgeTombstoneEvent } from '@/lib/delete';
 
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({ id: 'c1', name: '雅婷', phone: '0911111111', consent: 'granted', tags: ['VIP'] }),
@@ -23,8 +25,8 @@ const SEED_TREATMENTS: Treatment[] = [
 ];
 
 export default function Dashboard() {
-  const [customers] = useState<Customer[]>(SEED_CUSTOMERS);
-  const [treatments] = useState<Treatment[]>(SEED_TREATMENTS);
+  const [customers, setCustomers] = useState<Customer[]>(SEED_CUSTOMERS);
+  const [treatments, setTreatments] = useState<Treatment[]>(SEED_TREATMENTS);
   const [tab, setTab] = useState<'overview' | 'customers' | 'reminders' | 'analytics' | 'broadcast'>('overview');
   const [hydrated, setHydrated] = useState(false);
   // FR-005 / AC-007：本機追蹤哪些 broadcast target 已 approved
@@ -32,8 +34,115 @@ export default function Dashboard() {
   const [approvedTargets, setApprovedTargets] = useState<Record<string, BroadcastTarget>>({});
   // FR-004 / AC-002：本機追蹤哪些 reminder 已被設計師手動覆寫
   const [reminderOverrides, setReminderOverrides] = useState<Record<string, OverrideOptions>>({});
+  // FR-009 / AC-010：裝置共用警告（localStorage flag，預設顯示）
+  const [deviceShared, setDeviceShared] = useState<boolean>(true);
+  // FR-009 / AC-010：最近一次 purge tombstone（顯示在 UI）
+  const [lastPurge, setLastPurge] = useState<{ wipedAt: string; tombstoneId: string } | null>(null);
+  // FR-009 / AC-010：最近一次匯出 / 還原訊息（成功 / 失敗）
+  const [exportMsg, setExportMsg] = useState<string>('');
 
   useEffect(() => setHydrated(true), []);
+
+  // FR-009：讀取裝置共用 flag（localStorage）
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('device.shared');
+    if (stored === 'false') setDeviceShared(false);
+  }, []);
+
+  // FR-009：監聽 tombstone 事件
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<PurgeTombstoneEvent>).detail;
+      setLastPurge({ wipedAt: detail.wipedAt, tombstoneId: detail.tombstoneId });
+    };
+    window.addEventListener(PURGE_EVENT_NAME, handler);
+    return () => window.removeEventListener(PURGE_EVENT_NAME, handler);
+  }, []);
+
+  const handleExport = async () => {
+    try {
+      const passphrase = window.prompt('請輸入匯出密碼（將用於加密這份備份，至少 8 個字元）');
+      if (!passphrase) {
+        setExportMsg('已取消匯出');
+        return;
+      }
+      if (passphrase.length < 8) {
+        setExportMsg('匯出失敗：密碼至少 8 個字元');
+        return;
+      }
+      const payload: ExportPayload = {
+        customers,
+        treatments,
+        exportedAt: new Date().toISOString(),
+      };
+      const blob = await exportEncrypted(payload, passphrase);
+      // 觸發瀏覽器下載
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ts = new Date().toISOString().slice(0, 10);
+      a.download = `beauty-crm-${ts}${EXPORT_FILE_EXTENSION}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setExportMsg(`✓ 已匯出 ${customers.length} 客戶 / ${treatments.length} 療程（${a.download}）`);
+    } catch (err) {
+      setExportMsg(`匯出失敗：${(err as Error).message}`);
+    }
+  };
+
+  const handleImport = async (file: File) => {
+    try {
+      const passphrase = window.prompt('請輸入這份備份的密碼');
+      if (!passphrase) {
+        setExportMsg('已取消還原');
+        return;
+      }
+      const payload = await decryptEncrypted(file, passphrase);
+      setCustomers(payload.customers);
+      setTreatments(payload.treatments);
+      setApprovedTargets({});
+      setReminderOverrides({});
+      setExportMsg(`✓ 已還原 ${payload.customers.length} 客戶 / ${payload.treatments.length} 療程`);
+    } catch (err) {
+      if (err instanceof InvalidPassphraseError) {
+        setExportMsg('還原失敗：密碼錯誤或檔案已損壞');
+      } else {
+        setExportMsg(`還原失敗：${(err as Error).message}`);
+      }
+    }
+  };
+
+  const handlePurge = () => {
+    const ok = window.confirm(
+      '⚠ 即將刪除所有本機資料（客戶、療程、覆寫、核准紀錄）。\n此動作無法復原，請先匯出備份。\n\n確定要繼續嗎？',
+    );
+    if (!ok) return;
+    const ok2 = window.confirm('再次確認：所有資料即將從本機清除，繼續？');
+    if (!ok2) return;
+    const result = purgeAllData({
+      resetFn: () => {
+        setCustomers([]);
+        setTreatments([]);
+        setApprovedTargets({});
+        setReminderOverrides({});
+      },
+      scopes: ['customers', 'treatments', 'reminders', 'broadcast'],
+      reason: 'designer manual confirm',
+    });
+    setLastPurge({ wipedAt: result.wipedAt, tombstoneId: result.tombstoneId });
+    setExportMsg(`✓ 已刪除所有資料（tombstone: ${result.tombstoneId.slice(0, 22)}…）`);
+  };
+
+  const handleDismissDeviceWarning = () => {
+    setDeviceShared(false);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('device.shared', 'false');
+    }
+  };
 
   if (!hydrated) return <span role="status" aria-live="polite" style={{ padding: 24, display: 'block' }}>載入中…</span>;
 
@@ -51,6 +160,33 @@ export default function Dashboard() {
         <h1 style={{ fontSize: 28, color: '#a04030' }}>Beauty CRM</h1>
         <p style={{ color: '#6b4a45' }}>美業客戶長期管理 — 記得客戶做過什麼、多久該回來、如何在不打擾下追蹤</p>
       </header>
+
+      {/* FR-009 / AC-010：裝置共用警告（localStorage flag 預設顯示） */}
+      {deviceShared && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          style={{
+            background: '#fff4e0',
+            border: '1px solid #d6a55a',
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 16,
+            color: '#7a4a1a',
+          }}
+        >
+          <b>⚠ 裝置共用警告：</b>此裝置儲存了客戶資料。離開座位前請記得登出 / 上鎖，避免被他人看到個資。
+          {' '}
+          <button
+            type="button"
+            onClick={handleDismissDeviceWarning}
+            style={{ marginLeft: 8, fontSize: 12 }}
+            aria-label="我已知悉，關閉此警告"
+          >
+            我已知悉
+          </button>
+        </div>
+      )}
 
       <nav style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {(['overview', 'customers', 'reminders', 'analytics', 'broadcast'] as const).map((k) => (
@@ -75,6 +211,59 @@ export default function Dashboard() {
           </Card>
           <Card title="商業化分數（來自 PRD v3.0）">
             <p>Sweet spot 7.6 / 10　商業化 83.2 / 100　建議：GO with strict pilot gate</p>
+          </Card>
+          {/* FR-009 / AC-010：本地加密匯出 + 刪除 + 還原 */}
+          <Card title="📦 資料管理（加密匯出 / 刪除）">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" onClick={handleExport}>
+                📤 加密匯出
+              </button>
+              <label
+                style={{
+                  display: 'inline-block',
+                  padding: '6px 12px',
+                  border: '1px solid #a04030',
+                  borderRadius: 4,
+                  background: '#fff',
+                  color: '#a04030',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                📥 還原備份
+                <input
+                  type="file"
+                  accept={EXPORT_FILE_EXTENSION}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImport(f);
+                    e.target.value = '';
+                  }}
+                  style={{ display: 'none' }}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handlePurge}
+                style={{ borderColor: '#a04030', color: '#a04030' }}
+              >
+                🗑 刪除所有資料
+              </button>
+            </div>
+            {exportMsg && (
+              <p
+                role="status"
+                aria-live="polite"
+                style={{ marginTop: 8, fontSize: 13, color: '#3a7a3a' }}
+              >
+                {exportMsg}
+              </p>
+            )}
+            {lastPurge && (
+              <p style={{ marginTop: 8, fontSize: 12, color: '#6b4a45' }}>
+                上次刪除 tombstone：<code>{lastPurge.tombstoneId}</code> @ {lastPurge.wipedAt}
+              </p>
+            )}
           </Card>
         </section>
       )}
