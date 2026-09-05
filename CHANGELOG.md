@@ -1,5 +1,105 @@
 # Changelog
 
+## v0.3.0 — 2026-09-05 (round 3: 補 audit gap, part 3)
+
+對應 commits `ce780fa` ~ `7011856`（見 git log）。
+範圍：依 `docs/AUDIT_v1.md` §6 拆法的 Commit 4 + 7 + Round 1-2 deferred 項目，
+修 §5 中優先 + 低優先區段中：
+
+- **FR-008**（FAIL → PASS）：回流漏斗三階段手動標記 + Dashboard 6 個 tab
+- **FR-006 / AC-009**（PARTIAL → PASS）：VIP 觸發原因 `tierReason` util + Dashboard reason 文字
+- **DoD-8**（PARTIAL → PASS）：`Customer.version` / `Treatment.version` 樂觀鎖 + `src/lib/audit.ts` in-memory event log
+- **Gate-1**（FAIL → 技術 PASS，owner 內容待填）：Privacy / Terms / Contact 三頁
+- **Gate-2**（FAIL → 技術 PASS，owner 環境監控待接）：RUNBOOK 故障手冊
+- **DoD-1**（PARTIAL → PASS）：`docs/AC_MAPPING.md` 對照表
+- **Gate-5**（FAIL → 技術檔建立，owner 真實簽署 deferred）：`docs/AUDIT_v1.md §9` 佔位
+- **AC-003**（PARTIAL → PASS）：`tests/perf.test.ts` 7 個 AC 量測資料處理 < 50ms
+- **DoD-7**（PARTIAL → 技術 PASS，真實跑分 deferred）：`scripts/lighthouse.sh` + `lighthouserc.json`
+- **Round 1-2 nit**：「5 大類別」→「4 大類別」對齊 SPEC `TreatmentCategory`
+
+### Added
+- `src/lib/funnel.ts` 100 行（FR-008）：回流漏斗三階段（due / contacted / booked）
+  - `ContactLog` / `AppointmentLog` 結構（append-only audit log）
+  - `markContacted(logs, entry)` / `markBooked(logs, entry)` 不可變 pure functions
+    （同 customerId + 同 ISO 秒級 timestamp 去重；必填欄位 throw）
+  - `getFunnelStage(reminder, contactLogs, apptLogs)` 純查詢：優先序
+    apptLogs（未來 scheduledFor）> contactLogs > due
+  - `contactLogsFor` / `apptLogsFor` helper
+- `src/lib/audit.ts` 60 行（DoD-8）：in-memory event log
+  - `AuditEventType` 12 種（treatment.recorded / broadcast.approved / broadcast.sent /
+    broadcast.consentRevoked / data.purged / data.exported / data.imported /
+    customer.updated / photo.consentSet / funnel.contacted / funnel.booked /
+    reminder.overridden）
+  - `logEvent(type, payload, actor)` 不可變 append + console.debug 上報
+    （給未來 Sentry / OTel 串接預留 hook）
+  - `getEvents(filter?)` 純查詢：by type / actor / since
+  - `getAllEvents` / `clearEvents` 給測試 / purge 流程用
+- `src/app/privacy/page.tsx`（Gate-1，50 行）：
+  - §1.5 Non-Goals 衍生條款（純前端 in-memory、關瀏覽器即清空）
+  - §5.2 安全條款（PBKDF2 200k + AES-GCM 256、照片同意、行銷同意、核准狀態機）
+  - §10.4 error code 對應（EXPORT_FAILED / DELETE_FAILED 處置）
+  - §FR-009 匯出 / 刪除流程可由店主獨立完成
+- `src/app/terms/page.tsx`（Gate-1，40 行）：使用條款 + §1.5 Non-Goals 明確不做清單
+- `src/app/contact/page.tsx`（Gate-1，20 行）：聯絡資訊（owner 替換 placeholder）
+- `docs/RUNBOOK.md`（Gate-2，80 行）：匯出失敗、刪除卡住、provider 失敗降級、
+  CI 紅燈、audit log 查詢、已知限制（v1 範圍 + v2 解方）
+- `docs/AC_MAPPING.md`（DoD-1，40 行）：每個 AC / FR / DoD / Gate 對應的 test 檔 + 行號
+- `tests/funnel.test.ts`（19 AC）：markContacted / markBooked immutability +
+  必填 throw + 去重 + 過去/未來 scheduledFor；getFunnelStage 優先序 +
+  E2E 流程 due → contacted → booked；helper 函數篩選
+- `tests/audit.test.ts`（12 AC）：logEvent 必填 throw / 欄位齊全 / 不可變；
+  filter by type / actor / since / 多條件；clearEvents；
+  整合 recordTreatment 觸發 treatment.recorded event
+- `tests/pages.test.tsx`（4 AC）：三頁 SSR render 不 crash + 核心段落
+- `tests/perf.test.ts`（7 AC，AC-003）：用 `performance.now()` 量測
+  computeReminder / listOverdue / listDueSoon / topSpenders / computeRevenueByMonth /
+  computeCustomerLTV 對 100 客戶 / 300 療程 < 50ms；1000 客戶 / 3000 療程壓力 < 500ms；
+  SSR 字串 render < 100ms
+- `scripts/lighthouse.sh` 30 行（DoD-7）：呼叫 `npx --yes lighthouse@latest`
+  只跑 a11y category，門檻 ≥90
+- `lighthouserc.json`：LHCI 設定（4 個 URL：/、/privacy、/terms、/contact），
+  a11y 門檻 ≥0.9
+
+### Changed
+- `src/lib/tiers.ts`：加 `tierReason(tier, totalSpent, nextTier?, locale?)` 
+  回傳可讀字串（FR-006 / AC-009）
+- `src/lib/customers.ts`：`Customer.version: number`（預設 1，`updateCustomer` 自動 +1）
+- `src/lib/treatments.ts`：`Treatment.version: number`（`recordTreatment` 設為 1）+
+  `bumpTreatmentVersion(t)` 純函數
+- `src/lib/broadcast.ts`：`approve` / `markSent` / `recheckConsentBeforeSend` 內
+  同步呼叫 `logEvent`（DoD-8）
+- `src/lib/delete.ts`：`purgeAllData` 內 dispatchTombstone 之後 `logEvent('data.purged')`
+- `src/lib/reminders.ts`：`Reminder` 加 `funnelStage?: FunnelStage` optional 欄位
+  （向後相容；computeReminder 不污染既有路徑）
+- `src/components/AddTreatmentSheet.tsx`：註解「5 大類別」→「4 大類別」
+  對齊 SPEC §3.1 TreatmentCategory
+- `src/components/Dashboard.tsx`：
+  - tab 從 5 個升到 6 個（加「回流漏斗」），三欄顯示「應回訪 / 已聯絡 / 已預約」
+  - customers tab 與 analytics Top 3 改顯示 `tierReason` 字串
+  - 註解「5 大類別」→「4 大類別」
+- `tests/addTreatment.test.tsx`：註解「5 顆 preset」→「4 顆 preset」
+- `SECURITY_NOTES.md`：v1 限制 #3 改為「audit log 持久化」說明（v0.3.0 round 3 已實作
+  in-memory audit log）+ 新增「跑 Lighthouse a11y 跑分」章節
+- `README.md`：Quick Start 加 Lighthouse 跑分指令
+- `docs/AUDIT_v1.md §9`：保留 owner 簽署佔位 + 補上 round 3 補位說明
+
+### Deferred (out of round 3，留給 owner / v2)
+- DoD-3 / DoD-10：5 位 pilot 訪談（§11 SOP，owner 動作）
+- Gate-4：5 pilot 同意書（owner 動作）
+- Gate-5 owner 真實簽署：技術已加檔，owner 自己簽
+- AC-003 真實 browser 渲染量測：需 Playwright（已文件化）
+- DoD-7 真實 Lighthouse 跑分：需 npx lighthouse 環境（已文件化）
+- audit log 持久化：目前 in-memory + console.debug，需 Sentry / OTel 串接
+
+### Verified
+- `npm test` → 162 passed（was 115，+47：funnel 19 + audit 12 + pages 4 + perf 7 + tiers 5）
+- `npm run build` → exit 0（6 個靜態頁面：/、/privacy、/terms、/contact、/_not-found + 既有）
+- `npm run lint` → 0 errors（1 warning 在 `eslint.config.mjs` 自身，非 user code）
+- `git diff fix/v0.3.0-round2..fix/v0.3.0-round3 -- PRD/` → 0 lines（SPEC §1-§9 未動 ✓）
+- `git diff fix/v0.3.0-round2..fix/v0.3.0-round3 -- package.json package-lock.json` → 0 lines（無新 dep ✓）
+
+---
+
 ## v0.3.0 — 2026-09-05 (round 2: 補 audit gap, part 2)
 
 對應 commits `62b15a1` ~ `fd5055d`（見 git log）。
