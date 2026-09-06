@@ -1,3 +1,12 @@
+# Beauty CRM｜療程回流與客戶記憶工作台 — 規格計劃書
+
+> **v3.0.2 升級 banner**（2026-09-06，Sean 10-repo-fleet 補完）
+> 本檔 v3.0（2026-07-19 forced upgrade）內容完整保留；v3.0.2 為 fleet 級補丁，不破壞既有 sweet-spot 結論。
+> 本次新增：① §A v3.0.2 增量（CI/Test/Lint/Deploy 收斂）、② PRD/CHANGELOG.md 對齊、③ .github/workflows/ci.yml 4 jobs 契約、④ Definition of Done 與 SPEC §1–§15 對齊。
+> 不可變更項：sweet=7.6、商業化=83.2、action=GO with strict pilot gate、§1.5 Non-Goals、§3.1 MVP 邊界。
+
+---
+
 # Beauty CRM｜療程回流與客戶記憶工作台 — 規格計劃書 v3.0
 
 > 版本：v3.0｜更新日期：2026-07-19｜維護者：Sean PRD Rewrite Specialist｜對接技術：Hermes Agent + engineering
@@ -7,6 +16,64 @@
 
 本文件的數字、競品與市場結論均為待驗證假設；不可把 mock、HTTP 可達性或訪談口頭意願當成營收事實。
 v3.0 統一改寫公式：`sweet = (Q1+Q2+Q3+Q4+Q5) / 5` (0–10)；`商業化 = 30 + sweet × 7` (0–100)；真實推導，不取保守整數。
+
+---
+
+## §A. v3.0.2 增量（2026-09-06，Sean 10-repo-fleet 補完）
+
+> v3.0.2 不重新評分，僅補齊工程交付物（CI / test / lint / deploy contract）以對齊 fleet 規範。
+
+### §A.1 升級原因
+
+v3.0（2026-07-19 forced upgrade）完成了 sweet-spot 體檢、5 問量表、ADR 與市場驗證，文件強度達標；但 §7「部署契約」僅口頭描述，缺：
+1. **CI 標準化**：每個 repo 須有 4-job workflow（lint / test / build / deploy）
+2. **測試契約**：47 條 vitest AC 需可重現
+3. **Lint 基線**：0 error、warning 透明揭露
+4. **Deploy 契約**：Next.js → Vercel，secrets 需求明示
+
+v3.0.2 補上這層工程契約，後續 sprint 才有可驗收的 CI 結果。
+
+### §A.2 §1–§15 對齊（不變更既有結論）
+
+| SPEC 章節 | v3.0 結論 | v3.0.2 補丁 |
+|---|---|---|
+| §0 文件資訊 | v3.0 forced upgrade | 加 v3.0.2 banner 指向本節 |
+| §1.3 核心價值 | 療程回流 CRM，不正面競爭預約 | 不變 |
+| §1.5 Non-Goals | 不做預約/POS/自動行銷/醫療/多店 | 不變 |
+| §3.1 FR-001~010 | 10 條 P0 MUST | 不變；測試覆蓋維持 47 條 |
+| §3.2 v2 P1 | LINE 提醒/多設計師等 6 條 | 不變 |
+| §15.11 sweet | 7.6/10（不變） | 不重新體檢 |
+| §15.12 ADR | 6 條 | 不變 |
+
+### §A.3 工程交付物（新增）
+
+| 項目 | 路徑 | 內容 |
+|---|---|---|
+| PRD/CHANGELOG.md | `PRD/CHANGELOG.md` | v0.1.0 → v0.2.0 → v3.0 → v3.0.2 版本歷史 |
+| GHA CI | `.github/workflows/ci.yml` | 4-job workflow（lint / test / build / deploy-to-Vercel） |
+| Definition of Done | 本節 §A.4 | 6 項可驗收條件 |
+
+### §A.4 Definition of Done（v3.0.2 fleet 標準）
+
+- [x] `PRD/SPEC.md` v3.0.2 banner + 本增量章節已加入
+- [x] `PRD/CHANGELOG.md` 包含 v0.1.0 / v0.2.0 / v3.0 / v3.0.2 四個條目
+- [x] `.github/workflows/ci.yml` 存在，4 jobs（lint / test / build / deploy）
+- [x] `npm run lint` → 0 error（warning 透明揭露）
+- [x] `npm test` → 47/47 通過（7 個 test file，~0.3s）
+- [x] `npm run build` → Next.js 16 + Turbopack，0 error，3 static route
+- [x] Deploy 目標：Vercel（既有 vercel.json / Next.js 16 預設 deploy target）
+
+### §A.5 不變更項宣告
+
+- ✅ sweet=7.6、商業化=83.2 維持（不重做體檢）
+- ✅ §1.5 Non-Goals 維持（不做預約/POS/自動行銷）
+- ✅ §3.1 FR-001~010 維持（10 條 P0 MUST）
+- ✅ §15.11 量表 / §15.12 ADR / §15.13 市場驗證 維持
+- ✅ domain 邏輯（6 個 pure-function lib）不重構
+- ✅ 不引入 heavyweight dependency
+- ✅ 純前端 in-memory 架構不變
+
+---
 
 ## 0. 文件資訊表 (Document Info)
 
