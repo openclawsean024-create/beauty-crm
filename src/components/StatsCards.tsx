@@ -1,77 +1,91 @@
 'use client';
 
+import { t, type Lang } from '@/lib/i18n';
+
 interface StatsCardsProps {
-  pendingTotal: number;
+  lang: Lang;
+  followupsDue: number;
   overdueCount: number;
-  withinThreeDays: number;
-  bookedCount: number;
-  monthRevenue: number;
-  monthRevenueDeltaPct: number;
-  bookedRatePct: number;
+  upcomingCount: number;
+  returnRatePct: number;
+  returnRateDeltaPct: number;
+  visitsThisMonth: number;
+  visitsDeltaPct: number;
+  serviceRevenue: number;
+  revenueTargetPct: number;
 }
 
 interface StatItem {
-  label: string;
+  labelKey: 'metricFollowups' | 'metricReturn' | 'metricVisits' | 'metricRevenue';
   icon: string;
   value: string;
   note: React.ReactNode;
 }
 
 export default function StatsCards({
-  pendingTotal,
+  lang,
+  followupsDue,
   overdueCount,
-  withinThreeDays,
-  bookedCount,
-  monthRevenue,
-  monthRevenueDeltaPct,
-  bookedRatePct,
+  upcomingCount,
+  returnRatePct,
+  returnRateDeltaPct,
+  visitsThisMonth,
+  visitsDeltaPct,
+  serviceRevenue,
+  revenueTargetPct,
 }: StatsCardsProps) {
+  const revenueLabel = `NT$ ${Math.round(serviceRevenue / 1000).toLocaleString()}.${Math.round((serviceRevenue % 1000) / 100)}k`;
+
   const items: StatItem[] = [
     {
-      label: '待回訪',
+      labelKey: 'metricFollowups',
       icon: '◷',
-      value: String(pendingTotal),
+      value: String(followupsDue),
       note: (
         <>
-          <b>{overdueCount} 位逾期</b> · {Math.max(pendingTotal - overdueCount, withinThreeDays)} 位即將到期
+          <b>{overdueCount} overdue</b> · {upcomingCount} upcoming
         </>
       ),
     },
     {
-      label: '3 天內',
-      icon: '✓',
-      value: String(withinThreeDays),
-      note: <>即將到期 · <b>{bookedRatePct}%</b> 已預約</>,
+      labelKey: 'metricReturn',
+      icon: '↗',
+      value: `${returnRatePct}%`,
+      note: (
+        <>
+          <b>{returnRateDeltaPct >= 0 ? '+' : ''}{returnRateDeltaPct}%</b> vs last month
+        </>
+      ),
     },
     {
-      label: '已預約',
-      icon: '▣',
-      value: String(bookedCount),
-      note: <>本月回流 <b>{bookedRatePct}%</b></>,
+      labelKey: 'metricVisits',
+      icon: '＋',
+      value: String(visitsThisMonth),
+      note: (
+        <>
+          <b>{visitsDeltaPct >= 0 ? '+' : ''}{visitsDeltaPct}%</b> vs last month
+        </>
+      ),
     },
     {
-      label: '本月營收',
+      labelKey: 'metricRevenue',
       icon: '$',
-      value: monthRevenue.toLocaleString(),
-      note: (
-        <>
-          較上月 <b>{monthRevenueDeltaPct >= 0 ? '+' : ''}{monthRevenueDeltaPct}%</b>
-        </>
-      ),
+      value: revenueLabel,
+      note: <>{revenueTargetPct}% of monthly target</>,
     },
   ];
 
   return (
-    <section className="stats" aria-label="今日摘要">
+    <section className="metrics" aria-label={t(lang, 'metricFollowups')}>
       {items.map((item) => (
-        <div key={item.label} className="stat">
-          <div className="stat-top">
-            <span>{item.label}</span>
-            <span className="stat-icon" aria-hidden="true">{item.icon}</span>
+        <article key={item.labelKey} className="metric">
+          <div className="metric-top">
+            <span>{t(lang, item.labelKey)}</span>
+            <span className="metric-icon" aria-hidden="true">{item.icon}</span>
           </div>
-          <div className="stat-value">{item.value}</div>
-          <div className="stat-note">{item.note}</div>
-        </div>
+          <div className="metric-value mono">{item.value}</div>
+          <div className="metric-foot">{item.note}</div>
+        </article>
       ))}
     </section>
   );

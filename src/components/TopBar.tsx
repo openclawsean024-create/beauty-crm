@@ -1,57 +1,75 @@
 'use client';
 
 import { TAB_LABELS, type Tab } from './dashboard-types';
+import { t, type Lang } from '@/lib/i18n';
+import type { Theme } from '@/lib/persistence';
+import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 interface TopBarProps {
   activeTab: Tab;
+  lang: Lang;
+  theme: Theme;
   searchValue: string;
   onSearchChange: (value: string) => void;
-  onMenuClick: () => void;
+  onSearchFocus?: () => void;
+  onToggleLang: () => void;
+  onToggleTheme: () => void;
   designerInitial: string;
-  notificationCount: number;
 }
 
 export default function TopBar({
   activeTab,
+  lang,
+  theme,
   searchValue,
   onSearchChange,
-  onMenuClick,
+  onSearchFocus,
+  onToggleLang,
+  onToggleTheme,
   designerInitial,
-  notificationCount,
 }: TopBarProps) {
-  const today = new Date();
-  const dateLabel = `${today.getFullYear()} 年 ${today.getMonth() + 1} 月 ${today.getDate()} 日`;
   return (
     <header className="topbar">
-      <div className="topbar-left">
-        <button
-          type="button"
-          className="mobile-menu"
-          aria-label="開啟選單"
-          onClick={onMenuClick}
-        >
-          ☰
-        </button>
-        <div className="crumb">
-          <strong>{TAB_LABELS[activeTab]}</strong>
-          <span>　/　{dateLabel}</span>
-        </div>
+      <div className="workspace-switcher">
+        <WorkspaceSwitcher lang={lang} />
+        <span style={{ color: 'var(--muted)', fontWeight: 500 }} aria-hidden="true">　/　{TAB_LABELS[activeTab]}</span>
       </div>
+
       <div className="top-actions">
-        <label className="search" aria-label="搜尋客戶">
+        <label className="command">
           <span aria-hidden="true">⌕</span>
           <input
+            id="global-search"
             type="search"
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="搜尋客戶、電話…"
+            onFocus={onSearchFocus}
+            placeholder={t(lang, 'commandSearchPlaceholder')}
+            aria-label={t(lang, 'searchAria')}
           />
+          <span className="shortcut" aria-hidden="true">/</span>
         </label>
-        <button type="button" className="icon-btn" aria-label={`通知 ${notificationCount} 則`}>
-          <span aria-hidden="true">♧</span>
-          {notificationCount > 0 ? <span className="dot" aria-hidden="true" /> : null}
+
+        <button
+          type="button"
+          className="top-button"
+          id="lang-toggle"
+          onClick={onToggleLang}
+          aria-label="Switch language"
+        >
+          {t(lang, 'langToggle')}
         </button>
-        <div className="avatar top-avatar" aria-hidden="true">{designerInitial}</div>
+        <button
+          type="button"
+          className="top-button"
+          id="theme-toggle"
+          onClick={onToggleTheme}
+          aria-label={t(lang, 'themeToggle')}
+        >
+          <span aria-hidden="true">{theme === 'dark' ? '☀' : '◐'}</span>
+        </button>
+
+        <div className="user-avatar" aria-hidden="true">{designerInitial}</div>
       </div>
     </header>
   );

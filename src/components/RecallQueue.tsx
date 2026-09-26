@@ -2,133 +2,193 @@
 
 import type { Customer } from '@/lib/customers';
 import type { Treatment } from '@/lib/treatments';
-import type { Reminder } from '@/lib/reminders';
-import DraftComposer from './DraftComposer';
+import { t, type Lang } from '@/lib/i18n';
+import {
+  QUEUE_FILTERS,
+  type QueueFilter,
+  type Tab,
+} from './dashboard-types';
 
 export interface RecallRow {
   customer: Customer;
-  reminder: Reminder;
-  lastTreatment: Treatment | undefined;
+  lastServiceDate?: string;
+  lastServiceName?: string;
+  amount: number;
+  daysUntilRecall: number; // negative = overdue
+  status: 'overdue' | 'soon';
+  isVip: boolean;
 }
 
 interface RecallQueueProps {
+  lang: Lang;
   rows: RecallRow[];
   selectedCustomerId: string | null;
+  filter: QueueFilter;
+  query: string;
+  onFilterChange: (filter: QueueFilter) => void;
+  onQueryChange: (query: string) => void;
   onSelect: (customerId: string) => void;
   totalCount: number;
-  draftOpen: boolean;
-  draftText: string;
-  draftApproved: boolean;
-  onGenerateDraft: () => void;
-  onApproveDraft: () => void;
-  onCopyDraft: () => void;
+  onExport: () => void;
+  onShowAll: () => void;
 }
 
-function formatShortDate(iso: string | undefined): string {
+function statusForRow(row: RecallRow): {
+  label: string;
+  tone: 'overdue' | 'soon' | 'ok';
+} {
+  if (row.daysUntilRecall < 0) {
+    return { label: 'overdue', tone: 'overdue' };
+  }
+  return { label: 'soon', tone: 'soon' };
+}
+
+function initialOf(name: string): string {
+  const trimmed = name.trim();
+  return trimmed[0] ? trimmed[0].toUpperCase() : '?';
+}
+
+function formatServiceDate(iso?: string): string {
   if (!iso) return '—';
   return iso.slice(5).replace('-', '/');
 }
 
-function statusForReminder(reminder: Reminder): { label: string; tone: 'overdue' | 'soon' | 'ok' } {
-  if (reminder.status === 'overdue') {
-    return { label: `逾期 ${Math.abs(reminder.daysUntilRecall)} 天`, tone: 'overdue' };
-  }
-  if (reminder.status === 'due-soon') {
-    if (reminder.daysUntilRecall <= 3) return { label: `${reminder.daysUntilRecall} 天內`, tone: 'soon' };
-    return { label: `${reminder.daysUntilRecall} 天內`, tone: 'soon' };
-  }
-  if (reminder.status === 'upcoming') return { label: `${reminder.daysUntilRecall} 天後`, tone: 'ok' };
-  return { label: '尚無紀錄', tone: 'soon' };
+function formatDays(daysUntilRecall: number): string {
+  if (daysUntilRecall < 0) return `${Math.abs(daysUntilRecall)} days overdue`;
+  if (daysUntilRecall === 0) return 'today';
+  return `in ${daysUntilRecall} days`;
 }
 
-function customerInitial(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return '?';
-  return trimmed[0]!.toUpperCase();
+function formatAmount(amount: number): string {
+  return `NT$ ${amount.toLocaleString()}`;
 }
+
+const FILTER_LABEL: Record<QueueFilter, 'filterAll' | 'filterOverdue' | 'filterSoon' | 'filterVip'> = {
+  all: 'filterAll',
+  overdue: 'filterOverdue',
+  soon: 'filterSoon',
+  vip: 'filterVip',
+};
 
 export default function RecallQueue({
+  lang,
   rows,
   selectedCustomerId,
+  filter,
+  query,
+  onFilterChange,
+  onQueryChange,
   onSelect,
   totalCount,
-  draftOpen,
-  draftText,
-  draftApproved,
-  onGenerateDraft,
-  onApproveDraft,
-  onCopyDraft,
+  onExport,
+  onShowAll,
 }: RecallQueueProps) {
+  const filtered = filter === 'all' ? rows : rows.filter((r) => {
+    if (filter === 'overdue') return r.daysUntilRecall < 0;
+    if (filter === 'soon') return r.daysUntilRecall >= 0;
+    if (filter === 'vip') return r.isVip;
+    return true;
+  });
+  const searched = !query.trim()
+    ? filtered
+    : filtered.filter((r) => {
+        const q = query.toLowerCase();
+        return (
+          r.customer.name.toLowerCase().includes(q) ||
+          (r.lastServiceName ?? '').toLowerCase().includes(q)
+        );
+      });
+
   return (
-    <section className="panel" aria-labelledby="queue-title">
-      <div className="panel-head">
+    <article className="card">
+      <div className="card-header">
         <div>
-          <h2 className="panel-title" id="queue-title">今天先聯絡誰？</h2>
-          <p className="panel-sub">依逾期天數排序 · 點選客戶查看完整記憶</p>
+          <h2 className="card-title">{t(lang, 'queueTitle')}</h2>
+          <p className="card-subtitle">{t(lang, 'queueSubtitle')}</p>
         </div>
-        <button type="button" className="filter" aria-label="篩選狀態">
-          全部狀態　⌄
+        <button type="button" className="quiet" onClick={onExport}>
+          {t(lang, 'export')}
         </button>
       </div>
-
+      <div className="queue-tools">
+        <label className="queue-search" aria-label="Search queue">
+          <span aria-hidden="true">⌕</span>
+          <input
+            id="queue-search"
+            type="search"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder={t(lang, 'queueSearchPlaceholder')}
+          />
+        </label>
+        <div className="segmented" role="tablist" aria-label={t(lang, 'queueTitle')}>
+          {QUEUE_FILTERS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="tab"
+              aria-selected={filter === option}
+              className={filter === option ? 'active' : ''}
+              data-filter={option}
+              onClick={() => onFilterChange(option)}
+            >
+              {t(lang, FILTER_LABEL[option])}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="queue">
-        {rows.length === 0 ? (
-          <p style={{ padding: 24, color: 'var(--muted)', textAlign: 'center' }}>
-            目前沒有待回訪客戶
+        {searched.length === 0 ? (
+          <p style={{ padding: 20, color: 'var(--muted)', textAlign: 'center', fontSize: 12 }}>
+            {lang === 'zh' ? '目前沒有符合條件的客戶' : 'No clients match the current filters'}
           </p>
-        ) : (
-          rows.map(({ customer, reminder, lastTreatment }) => {
-            const status = statusForReminder(reminder);
-            const isSelected = customer.id === selectedCustomerId;
-            return (
-              <button
-                key={customer.id}
-                type="button"
-                className={`queue-row${isSelected ? ' selected' : ''}`}
-                aria-pressed={isSelected}
-                onClick={() => onSelect(customer.id)}
-              >
-                <span className="customer">
-                  <span className="mini-avatar" aria-hidden="true">{customerInitial(customer.name)}</span>
-                  <span>
-                    <span className="customer-name">{customer.name}</span>
-                    <br />
-                    <span className="customer-meta">
-                      最後服務 · {lastTreatment?.serviceName ?? '尚無紀錄'}
-                    </span>
+        ) : null}
+        {searched.map((row) => {
+          const status = statusForRow(row);
+          const isSelected = row.customer.id === selectedCustomerId;
+          return (
+            <button
+              key={row.customer.id}
+              type="button"
+              className={`queue-row${isSelected ? ' selected' : ''}`}
+              aria-pressed={isSelected}
+              data-status={status.tone}
+              data-vip={row.isVip ? 'true' : 'false'}
+              onClick={() => onSelect(row.customer.id)}
+            >
+              <div className="person">
+                <span className="person-mark" aria-hidden="true">{initialOf(row.customer.name)}</span>
+                <span>
+                  <span className="person-name">{row.customer.name}</span>
+                  <br />
+                  <span className="person-meta mono">
+                    {formatServiceDate(row.lastServiceDate)} · {row.lastServiceName ?? t(lang, 'noFindings')}
                   </span>
                 </span>
-                <span>
-                  <span className="cell-label">上次服務</span>
-                  <br />
-                  <span className="cell-value">{formatShortDate(reminder.lastPerformedAt)}</span>
-                </span>
-                <span>
-                  <span className="cell-label">建議回訪</span>
-                  <br />
-                  <span className={`status ${status.tone}`}>{status.label}</span>
-                </span>
-                <span aria-hidden="true" style={{ color: 'var(--muted)' }}>›</span>
-              </button>
-            );
-          })
-        )}
+              </div>
+              <span className="cell-stack">
+                <span className="cell-label">Return window</span>
+                <span className="cell-value mono">{formatDays(row.daysUntilRecall)}</span>
+              </span>
+              <span className="cell-stack">
+                <span className="cell-label">Last visit</span>
+                <span className="cell-value mono">{formatAmount(row.amount)}</span>
+              </span>
+              <span className={`status ${status.tone}`}>{status.label}</span>
+            </button>
+          );
+        })}
       </div>
-
-      <DraftComposer
-        open={draftOpen}
-        draftText={draftText}
-        approved={draftApproved}
-        onApprove={onApproveDraft}
-        onCopy={onCopyDraft}
-        onGenerate={onGenerateDraft}
-      />
-
-      <div className="panel-foot">
-        <button type="button" className="ghost">
-          查看全部 {totalCount} 位待回訪客戶　→
+      <div className="queue-footer">
+        <span>
+          {t(lang, 'showingOf')} {searched.length} / {totalCount}
+        </span>
+        <button type="button" className="quiet" onClick={onShowAll}>
+          {t(lang, 'showAll')} →
         </button>
       </div>
-    </section>
+    </article>
   );
 }
+
+export const _internalTab: Tab = 'today';

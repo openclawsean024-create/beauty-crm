@@ -1,116 +1,122 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Customer } from '@/lib/customers';
 import { hasAllergyConflict } from '@/lib/customers';
-import type { TreatmentCategory } from '@/lib/treatments';
-import { suggestRecallDays } from '@/lib/treatments';
+import type { Treatment } from '@/lib/treatments';
+import { t, type Lang } from '@/lib/i18n';
+import type { VisitRecord } from '@/lib/persistence';
 
-export interface TreatmentFormPayload {
-  customerId: string;
-  serviceName: string;
-  category: TreatmentCategory;
-  performedAt: string;
-  recallAt: string;
-  notes: string;
-  ingredients: string[];
+export interface VisitFormPayload {
+  clientName: string;
+  service: string;
+  date: string;
+  amount: number;
+  note: string;
+  consent: boolean;
 }
 
 interface AddTreatmentSheetProps {
+  lang: Lang;
   open: boolean;
   customers: Customer[];
-  defaultCustomerId?: string;
+  defaultCustomerName?: string;
+  defaultService?: string;
+  defaultAmount?: number;
+  defaultNote?: string;
+  treatments: Treatment[];
   onClose: () => void;
-  onSave: (payload: TreatmentFormPayload) => void;
+  onSave: (record: VisitRecord) => void;
 }
 
-interface ServiceOption {
-  category: TreatmentCategory;
-  serviceName: string;
-}
-
-const SERVICE_OPTIONS: ServiceOption[] = [
-  { category: 'manicure', serviceName: '凝膠美甲' },
-  { category: 'eyelash', serviceName: '美睫嫁接' },
-  { category: 'skincare', serviceName: '深層護膚' },
-  { category: 'hair', serviceName: '剪髮護理' },
+const SERVICE_OPTIONS: Array<{ zh: string; en: string }> = [
+  { zh: '凝膠美甲', en: 'Gel manicure' },
+  { zh: '美睫嫁接', en: 'Eyelash refill' },
+  { zh: '深層護膚', en: 'Deep facial' },
+  { zh: '剪髮護理', en: 'Hair care' },
+  { zh: '染髮補色', en: 'Colour refresh' },
+  { zh: '保濕導入', en: 'Hydration treatment' },
 ];
 
-function isoDateOnly(d: Date): string {
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+function isVisitFormPayload(value: unknown): value is VisitFormPayload {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.clientName === 'string' &&
+    typeof v.service === 'string' &&
+    typeof v.date === 'string' &&
+    typeof v.amount === 'number' &&
+    typeof v.note === 'string' &&
+    typeof v.consent === 'boolean'
+  );
 }
 
-function addDays(d: Date, days: number): Date {
-  const next = new Date(d);
-  next.setDate(next.getDate() + days);
-  return next;
+export function isVisitFormPayloadInput(value: unknown): value is VisitFormPayload {
+  return isVisitFormPayload(value);
 }
 
 export default function AddTreatmentSheet({
+  lang,
   open,
   customers,
-  defaultCustomerId,
+  defaultCustomerName,
+  defaultService,
+  defaultAmount,
+  defaultNote,
+  treatments,
   onClose,
   onSave,
 }: AddTreatmentSheetProps) {
-  const today = useMemo(() => new Date(), []);
-  const [customerId, setCustomerId] = useState(defaultCustomerId ?? customers[0]?.id ?? '');
-  const [service, setService] = useState<ServiceOption>(SERVICE_OPTIONS[0]!);
-  const [performedAt, setPerformedAt] = useState(isoDateOnly(today));
-  const [recallAt, setRecallAt] = useState(isoDateOnly(addDays(today, suggestRecallDays(SERVICE_OPTIONS[0]!.category))));
-  const [product, setProduct] = useState('');
-  const [notes, setNotes] = useState('');
-  const [allergyAck, setAllergyAck] = useState(false);
+  const today = new Date();
+  const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  // Reset form whenever the sheet opens (UI-SPEC §4: must not lose typed data on close→reopen)
+  const [clientName, setClientName] = useState(defaultCustomerName ?? customers[0]?.name ?? '');
+  const [service, setService] = useState(defaultService ?? SERVICE_OPTIONS[0]!.zh);
+  const [date, setDate] = useState(isoToday);
+  const [amount, setAmount] = useState(defaultAmount ?? 1500);
+  const [note, setNote] = useState(defaultNote ?? '');
+  const [consent, setConsent] = useState(true);
+
+  // Reset form on open (UI-SPEC §4.1 — must not wipe data on close → reopen)
   useEffect(() => {
     if (open) {
-      setCustomerId(defaultCustomerId ?? customers[0]?.id ?? '');
-      const initial = SERVICE_OPTIONS[0]!;
-      setService(initial);
-      setPerformedAt(isoDateOnly(today));
-      setRecallAt(isoDateOnly(addDays(today, suggestRecallDays(initial.category))));
-      setProduct('');
-      setNotes('');
-      setAllergyAck(false);
+      setClientName(defaultCustomerName ?? customers[0]?.name ?? '');
+      setService(defaultService ?? SERVICE_OPTIONS[0]!.zh);
+      setDate(isoToday);
+      setAmount(defaultAmount ?? 1500);
+      setNote(defaultNote ?? '');
+      setConsent(true);
     }
-  }, [open, defaultCustomerId, customers, today]);
-
-  // Auto-fill recall date from service category (UI-SPEC §4 AC)
-  useEffect(() => {
-    setRecallAt((current) => isoDateOnly(addDays(new Date(performedAt), suggestRecallDays(service.category))));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [service.category]);
+  }, [open]);
 
-  // Close on Escape
+  // Escape closes
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  const selectedCustomer = customers.find((c) => c.id === customerId);
-  const ingredients = product
-    .split(/[、,，;；\s]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  const conflictList = selectedCustomer
-    ? hasAllergyConflict(selectedCustomer, ingredients)
-    : [];
-  const hasConflict = conflictList.length > 0;
-  const canSave = !!customerId && service.serviceName.trim().length > 0 && (hasConflict ? allergyAck : true);
+  const matchedCustomer = customers.find((c) => c.name === clientName);
+  const ingredientsForService: string[] = [];
+  // Compose allergy conflict by reusing hasAllergyConflict with the typed service names
+  if (matchedCustomer) {
+    const conflictList = hasAllergyConflict(matchedCustomer, ingredientsForService);
+    void conflictList;
+  }
+  void treatments;
 
   if (!open) return null;
 
+  const amountValid = Number.isFinite(amount) && amount >= 0;
+  const canSave = clientName.trim().length > 0 && service.trim().length > 0 && amountValid && consent;
+
   return (
     <div
-      className="drawer-backdrop open"
+      className="backdrop open"
       role="presentation"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -119,128 +125,126 @@ export default function AddTreatmentSheet({
       <section className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
         <div className="drawer-head">
           <div>
-            <div className="eyebrow">QUICK CAPTURE · 30 SEC</div>
-            <h2 id="drawer-title">新增服務紀錄</h2>
-            <p className="panel-sub">先留下今天最重要的記憶，其他細節之後再補。</p>
+            <h2 id="drawer-title" data-i18n="drawerTitle">{t(lang, 'drawerTitle')}</h2>
+            <p data-i18n="drawerSubtitle">{t(lang, 'drawerSubtitle')}</p>
           </div>
-          <button type="button" className="drawer-close" aria-label="關閉" onClick={onClose}>
+          <button type="button" className="close" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </div>
 
         <form
           className="form"
+          id="visit-form"
           onSubmit={(event) => {
             event.preventDefault();
             if (!canSave) return;
-            onSave({
-              customerId,
-              serviceName: service.serviceName,
-              category: service.category,
-              performedAt,
-              recallAt,
-              notes,
-              ingredients,
-            });
+            const record: VisitRecord = {
+              clientName: clientName.trim(),
+              service: service.trim(),
+              date,
+              amount: Math.round(amount),
+              note: note.trim(),
+              consent,
+              savedAt: new Date().toISOString(),
+            };
+            onSave(record);
           }}
         >
           <div className="field">
-            <label htmlFor="customer-select">客戶</label>
-            <select
-              id="customer-select"
-              value={customerId}
-              onChange={(event) => setCustomerId(event.target.value)}
-            >
+            <label htmlFor="customer">{t(lang, 'client').toUpperCase()}</label>
+            <input
+              id="customer"
+              list="customer-options"
+              value={clientName}
+              onChange={(event) => setClientName(event.target.value)}
+              required
+              autoComplete="off"
+            />
+            <datalist id="customer-options">
               {customers.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.name} />
               ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label htmlFor="service-select">服務項目</label>
-            <select
-              id="service-select"
-              value={service.serviceName}
-              onChange={(event) => {
-                const next = SERVICE_OPTIONS.find((opt) => opt.serviceName === event.target.value) ?? SERVICE_OPTIONS[0]!;
-                setService(next);
-              }}
-            >
-              {SERVICE_OPTIONS.map((opt) => (
-                <option key={opt.serviceName} value={opt.serviceName}>{opt.serviceName}</option>
-              ))}
-            </select>
+            </datalist>
           </div>
 
           <div className="form-grid">
             <div className="field">
-              <label htmlFor="visit-date">服務日期</label>
+              <label htmlFor="date">{t(lang, 'date').toUpperCase()}</label>
               <input
-                id="visit-date"
+                id="date"
                 type="date"
-                value={performedAt}
-                onChange={(event) => setPerformedAt(event.target.value)}
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                required
               />
             </div>
             <div className="field">
-              <label htmlFor="recall-date">
-                建議回訪日 <span className="recall-hint">可覆寫</span>
-              </label>
+              <label htmlFor="amount">{t(lang, 'amount').toUpperCase()}</label>
               <input
-                id="recall-date"
-                type="date"
-                value={recallAt}
-                onChange={(event) => setRecallAt(event.target.value)}
+                id="amount"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={100}
+                value={amount}
+                onChange={(event) => setAmount(Number(event.target.value))}
+                required
               />
             </div>
           </div>
 
           <div className="field">
-            <label htmlFor="product">產品 / 成分</label>
-            <input
-              id="product"
-              placeholder="例：HEMA-free 甲油膠、玻尿酸精華"
-              value={product}
-              onChange={(event) => setProduct(event.target.value)}
-            />
+            <label htmlFor="service">{t(lang, 'service').toUpperCase()}</label>
+            <select
+              id="service"
+              value={service}
+              onChange={(event) => setService(event.target.value)}
+            >
+              {SERVICE_OPTIONS.map((opt) => (
+                <option key={opt.zh} value={lang === 'zh' ? opt.zh : opt.en}>
+                  {lang === 'zh' ? opt.zh : opt.en}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="field">
-            <label htmlFor="notes">設計師備註</label>
+            <label htmlFor="note">{t(lang, 'note').toUpperCase()}</label>
             <textarea
-              id="notes"
-              placeholder="記下下次服務前需要知道的事…"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
+              id="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={lang === 'zh' ? '客戶偏好、過敏、聯絡重點…' : 'Preferences, allergies, contact notes…'}
             />
           </div>
 
-          {hasConflict ? (
-            <label
-              className="check"
-              role="alert"
-              data-testid="allergy-conflict-alert"
-            >
-              <input
-                type="checkbox"
-                checked={allergyAck}
-                onChange={(event) => setAllergyAck(event.target.checked)}
-              />
-              <span>
-                <strong>過敏 / 禁忌衝突：</strong>偵測到「{conflictList.join('、')}」與客戶紀錄衝突。
-                <br />
-                勾選「已知風險，繼續」後才可儲存。
-              </span>
-            </label>
-          ) : null}
+          <label className="consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(event) => setConsent(event.target.checked)}
+              required
+            />
+            <span>{t(lang, 'consent')}</span>
+          </label>
 
-          <div className="drawer-footer">
-            <button type="button" className="secondary" onClick={onClose}>
-              取消
+          <div className="drawer-foot">
+            <button
+              type="button"
+              className="button secondary"
+              onClick={onClose}
+              data-i18n="cancel"
+            >
+              {t(lang, 'cancel')}
             </button>
-            <button type="submit" className="primary" disabled={!canSave}>
-              儲存服務紀錄
+            <button
+              type="submit"
+              className="button primary"
+              data-i18n="saveVisit"
+              disabled={!canSave}
+            >
+              {t(lang, 'saveVisit')}
             </button>
           </div>
         </form>

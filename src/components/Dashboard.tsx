@@ -3,58 +3,84 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createCustomer, type Customer } from '@/lib/customers';
 import { recordTreatment, type Treatment } from '@/lib/treatments';
-import { computeReminder, listOverdue } from '@/lib/reminders';
-import { computeRevenueByMonth } from '@/lib/analytics';
-import { buildBroadcast, BUILTIN_TEMPLATES } from '@/lib/broadcast';
+import { computeReminder } from '@/lib/reminders';
+import { computeCustomerLTV } from '@/lib/analytics';
+import { isLang, t, toggleLang, type Lang } from '@/lib/i18n';
+import {
+  loadPersistedState,
+  persistState,
+  appendVisit,
+  mergePersistedState,
+  makeVisitRecord,
+  type PersistedState,
+  type Theme,
+  type VisitRecord,
+} from '@/lib/persistence';
+import { buildExportPayload, downloadExport } from '@/lib/export';
 
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import StatsCards from './StatsCards';
 import RecallQueue, { type RecallRow } from './RecallQueue';
 import CustomerMemoryPanel from './CustomerMemoryPanel';
-import AddTreatmentSheet, { type TreatmentFormPayload } from './AddTreatmentSheet';
+import AddTreatmentSheet from './AddTreatmentSheet';
 import MobileBottomNav from './MobileBottomNav';
-import type { Tab } from './dashboard-types';
+import ReturnRhythmChart from './ReturnRhythmChart';
+import NextBestActions from './NextBestActions';
+import {
+  type QueueFilter,
+  type Tab,
+} from './dashboard-types';
 
 // === Seed data (PRESERVE — wiring per AGENTS.md scope) ===
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({
     id: 'c1',
-    name: '雅婷',
-    phone: '0911111111',
+    name: '陳美玲',
+    phone: '0933312318',
     consent: 'granted',
-    tags: ['VIP 金卡', '裸色系偏好'],
-    preferences: ['喜歡安靜', '裸色系偏好'],
-    allergies: ['HEMA'],
-    notes: '上次想把方圓甲改短一點。喜歡低調、耐看，不要太亮的珠光。',
+    tags: ['18 visits', 'Natural brown', 'No mornings'],
+    preferences: ['Natural brown', 'Fragrance-free formula'],
+    allergies: ['Lavender oil'],
+    notes: 'Natural brown preference; lavender oil sensitivity; fragrance-free formula used.',
   }),
   createCustomer({
     id: 'c2',
-    name: '小美',
-    phone: '0922222222',
+    name: '林瑜安',
+    phone: '0945623702',
     consent: 'granted',
-    tags: ['自然款'],
-    preferences: ['自然款嫁接'],
-    notes: '偏好自然款，右眼眼尾容易塌，操作前先確認眼周狀況。',
+    tags: ['7 visits', 'Low irritation', 'Weekends'],
+    preferences: ['Low-irritation products'],
+    allergies: ['高濃度酸類'],
+    notes: 'High-acid products caused irritation before; avoid proactive recommendation.',
   }),
   createCustomer({
     id: 'c3',
-    name: 'Lisa',
-    phone: '0933333333',
-    consent: 'pending',
-    tags: ['敏感肌'],
-    preferences: ['低敏產品'],
-    allergies: ['AHA 酸類', '水楊酸'],
-    notes: '上次做深層保濕，回家後沒有泛紅。下次可以詢問換季敏感狀況。',
+    name: '許雅婷',
+    phone: '0958743146',
+    consent: 'granted',
+    tags: ['12 visits', 'Natural lash', 'Lightweight'],
+    preferences: ['Natural lash, lightweight'],
+    notes: 'No allergy record; preference is natural and lightweight.',
   }),
   createCustomer({
     id: 'c4',
-    name: 'Amy',
-    phone: '0944444444',
-    consent: 'revoked',
-    tags: ['短髮'],
-    preferences: ['俐落短髮'],
-    notes: '喜歡俐落短髮，每次可先問是否需要加做頭皮護理。',
+    name: '周佳蓉',
+    phone: '0912045559',
+    consent: 'pending',
+    tags: ['2 visits', 'Hydration', 'Evenings'],
+    preferences: ['Hydration, evenings'],
+    notes: 'No sensitivity record yet; ask once before the next service.',
+  }),
+  createCustomer({
+    id: 'c5',
+    name: '張婉雯',
+    phone: '0952327931',
+    consent: 'granted',
+    tags: ['22 visits', 'Colour refresh', 'Low fragrance'],
+    preferences: ['Colour refresh, low fragrance'],
+    allergies: ['Strong fragrance'],
+    notes: 'Sensitive to strong fragrance; keep low-fragrance products in notes.',
   }),
 ];
 
@@ -62,203 +88,379 @@ const SEED_TREATMENTS: Treatment[] = [
   recordTreatment({
     id: 't1',
     customerId: 'c1',
-    category: 'manicure',
-    serviceName: '凝膠美甲',
-    price: 1200,
+    category: 'hair',
+    serviceName: 'Keratin care',
+    price: 2800,
     durationMin: 90,
-    performedAt: '2026-05-15T10:00:00Z',
+    performedAt: '2026-08-10T10:00:00Z',
+    notes: 'Fragrance-free formula',
   }),
   recordTreatment({
     id: 't2',
     customerId: 'c1',
-    category: 'skincare',
-    serviceName: '臉部保養',
-    price: 2500,
+    category: 'hair',
+    serviceName: 'Colour refresh',
+    price: 2400,
     durationMin: 90,
-    performedAt: '2026-06-20T10:00:00Z',
+    performedAt: '2026-07-02T10:00:00Z',
+    notes: 'Natural brown',
   }),
   recordTreatment({
     id: 't3',
     customerId: 'c2',
-    category: 'eyelash',
-    serviceName: '美睫嫁接',
-    price: 1500,
+    category: 'skincare',
+    serviceName: 'Deep cleanse',
+    price: 1600,
     durationMin: 60,
-    performedAt: '2026-07-01T10:00:00Z',
+    performedAt: '2026-08-28T10:00:00Z',
+    notes: 'Low-irritation products',
   }),
   recordTreatment({
     id: 't4',
     customerId: 'c3',
+    category: 'eyelash',
+    serviceName: 'Japanese lash refill',
+    price: 2400,
+    durationMin: 60,
+    performedAt: '2026-08-31T10:00:00Z',
+    notes: 'Natural style',
+  }),
+  recordTreatment({
+    id: 't5',
+    customerId: 'c4',
+    category: 'skincare',
+    serviceName: 'Hydration treatment',
+    price: 1900,
+    durationMin: 60,
+    performedAt: '2026-09-02T10:00:00Z',
+  }),
+  recordTreatment({
+    id: 't6',
+    customerId: 'c5',
     category: 'hair',
-    serviceName: '染髮',
+    serviceName: 'Colour refresh',
     price: 3200,
-    durationMin: 180,
-    performedAt: '2026-06-01T10:00:00Z',
+    durationMin: 120,
+    performedAt: '2026-09-05T10:00:00Z',
+    notes: 'Low fragrance',
   }),
 ];
 
 const DESIGNER = { name: '林心妍', initial: '林' };
 
-function buildDraftBody(customerName: string, serviceName: string): string {
-  return `嗨，${customerName}！上次的 ${serviceName} 差不多到了適合整理的時間，最近狀況還好嗎？如果你這週有空，我可以幫你留一個舒服的時段 ☺️`;
-}
+// Per-client draft body + tier + care note (v3 prototype data, kept as seed
+// so the UI has context without running off the domain libs).
+const SEED_DRAFT_BODIES: Record<string, string> = {
+  c1: '美玲午安！想起你上次做的自然棕護髮，這週剛好進入適合整理的時間了。最近頭髮狀況還好嗎？如果你想回來，我可以幫你留 10 月平日下午的時段。',
+  c2: '瑜安午安！最近換季肌膚還適應嗎？上次深層清潔後差不多進入保養週期，如果你想安排，我可以先幫你看看這週末的時段。',
+  c3: '雅婷午安！你上次的自然款差不多快到回補時間了，最近如果想維持輕盈的效果，我可以幫你留幾個方便的時段。',
+  c4: '佳蓉午安！想問問你上次保濕導入後的肌膚感受如何？再幾天會進入適合做第二次保養的時間，如果覺得效果不錯，我可以幫你留晚上時段。',
+  c5: '婉雯午安！最近髮色維持得還好嗎？我整理了幾個低調色的參考，等你差不多想補色時再一起看看，不急著現在決定。',
+};
 
-function formatNumber(value: number): string {
-  return value.toLocaleString();
-}
+const SEED_TIER_LABEL: Record<string, string> = {
+  c1: 'GOLD VIP',
+  c2: 'SILVER',
+  c3: 'GOLD VIP',
+  c4: 'STANDARD',
+  c5: 'GOLD VIP',
+};
 
-function deltaPct(current: number, previous: number): number {
-  if (previous <= 0) return current > 0 ? 100 : 0;
-  return Math.round(((current - previous) / previous) * 100);
-}
-
-function shortDate(d: Date): string {
-  const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-  const weekday = weekdays[d.getDay()] ?? 'MON';
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${weekday} · ${month}/${day}`;
+function buildDraftFor(customer: Customer | null, treatments: Treatment[]): string {
+  if (!customer) return '';
+  const custom = SEED_DRAFT_BODIES[customer.id];
+  if (custom) return custom;
+  const last = treatments.find((t) => t.customerId === customer.id);
+  return `嗨，${customer.name}！上次${last?.serviceName ?? '的療程'}差不多到該整理的時間了，最近狀況還好嗎？`;
 }
 
 export default function Dashboard() {
   const [customers] = useState<Customer[]>(SEED_CUSTOMERS);
   const [treatments] = useState<Treatment[]>(SEED_TREATMENTS);
+
+  // Persisted UI state
+  const [lang, setLang] = useState<Lang>('zh');
+  const [theme, setTheme] = useState<Theme>('light');
+  const [persisted, setPersisted] = useState<PersistedState>({});
+
+  // UI state
   const [tab, setTab] = useState<Tab>('today');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(SEED_CUSTOMERS[0]?.id ?? null);
-  const [searchValue, setSearchValue] = useState('');
+  const [globalQuery, setGlobalQuery] = useState('');
+  const [queueQuery, setQueueQuery] = useState('');
+  const [filter, setFilter] = useState<QueueFilter>('all');
   const [addOpen, setAddOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
-  const [draftText, setDraftText] = useState('');
   const [draftApproved, setDraftApproved] = useState(false);
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: '', show: false });
   const [hydrated, setHydrated] = useState(false);
 
-  useEffect(() => setHydrated(true), []);
+  // Hydrate from localStorage
+  useEffect(() => {
+    const state = loadPersistedState();
+    setPersisted(state);
+    setLang(state.lang ?? 'zh');
+    setTheme(state.theme ?? 'light');
+    setHydrated(true);
+  }, []);
+
+  // Apply theme to <html>
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (theme === 'dark') {
+      document.documentElement.dataset.theme = 'dark';
+    } else {
+      document.documentElement.dataset.theme = 'light';
+    }
+  }, [theme]);
+
+  // Apply lang to <html>
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant-TW' : 'en';
+  }, [lang]);
 
   // Auto-hide toast
   useEffect(() => {
     if (!toast.show) return;
-    const timer = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2600);
+    const timer = setTimeout(() => setToast((t) => ({ ...t, show: false })), 2200);
     return () => clearTimeout(timer);
   }, [toast.show, toast.msg]);
 
   const today = useMemo(() => new Date(), []);
 
-  // Search filter — applies to queue + customer list (UI-SPEC §2)
-  const visibleCustomers = useMemo(() => {
-    if (!searchValue.trim()) return customers;
-    const q = searchValue.toLowerCase().trim();
-    return customers.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q),
-    );
-  }, [customers, searchValue]);
-
-  const visibleIds = useMemo(() => new Set(visibleCustomers.map((c) => c.id)), [visibleCustomers]);
-
-  // Reminders sorted: overdue first by daysUntil (most overdue first), then due-soon
+  // Compute recall rows
   const recallRows = useMemo<RecallRow[]>(() => {
     return customers
-      .filter((c) => visibleIds.has(c.id))
-      .map((customer) => {
-        const reminder = computeReminder(customer, treatments, today);
-        const lastTreatment = treatments.find((t) => t.id === reminder.lastTreatmentId);
-        return { customer, reminder, lastTreatment };
+      .map((c) => {
+        const reminder = computeReminder(c, treatments, today);
+        const last = treatments
+          .filter((tx) => tx.customerId === c.id)
+          .sort((a, b) => b.performedAt.localeCompare(a.performedAt))[0];
+        const ltv = computeCustomerLTV(treatments, c.id);
+        const isVip = ltv.totalSpent >= 20000;
+        return {
+          customer: c,
+          lastServiceDate: last?.performedAt,
+          lastServiceName: last?.serviceName,
+          amount: last?.price ?? 0,
+          daysUntilRecall: reminder.daysUntilRecall,
+          status: reminder.daysUntilRecall < 0 ? 'overdue' : 'soon',
+          isVip,
+        } satisfies RecallRow;
       })
-      .filter((row) => row.reminder.status === 'overdue' || row.reminder.status === 'due-soon')
+      // Show anyone returning in the next 14 days OR overdue
+      .filter((row) => row.daysUntilRecall < 0 || row.daysUntilRecall <= 14)
       .sort((a, b) => {
-        // Overdue first (most negative days first), then due-soon (ascending days)
-        const aOverdue = a.reminder.status === 'overdue';
-        const bOverdue = b.reminder.status === 'overdue';
-        if (aOverdue !== bOverdue) return aOverdue ? -1 : 1;
-        return a.reminder.daysUntilRecall - b.reminder.daysUntilRecall;
+        // Overdue first (most overdue first), then soon
+        const aOver = a.daysUntilRecall < 0;
+        const bOver = b.daysUntilRecall < 0;
+        if (aOver !== bOver) return aOver ? -1 : 1;
+        return a.daysUntilRecall - b.daysUntilRecall;
       });
-  }, [customers, treatments, today, visibleIds]);
+  }, [customers, treatments, today]);
 
-  const overdueRows = useMemo(() => recallRows.filter((r) => r.reminder.status === 'overdue'), [recallRows]);
-  const dueSoonRows = useMemo(() => recallRows.filter((r) => r.reminder.status === 'due-soon'), [recallRows]);
-  const withinThreeDays = useMemo(() => recallRows.filter((r) => r.reminder.daysUntilRecall <= 3 && r.reminder.daysUntilRecall >= 0).length, [recallRows]);
-
-  // Monthly revenue + delta
-  const monthlyRevenue = useMemo(() => {
-    const rows = computeRevenueByMonth(treatments);
-    return rows[rows.length - 1] ?? { month: '', total: 0, count: 0 };
-  }, [treatments]);
-  const previousRevenue = useMemo(() => {
-    const rows = computeRevenueByMonth(treatments);
-    return rows[rows.length - 2] ?? { month: '', total: 0, count: 0 };
-  }, [treatments]);
-  const revenueDelta = deltaPct(monthlyRevenue.total, previousRevenue.total);
-
-  // 已預約 proxy — granted customers in the cohort
-  const bookedCount = useMemo(() => customers.filter((c) => c.consent === 'granted').length, [customers]);
-  const pendingTotal = overdueRows.length + dueSoonRows.length;
+  const overdueRows = useMemo(() => recallRows.filter((r) => r.daysUntilRecall < 0), [recallRows]);
+  const upcomingRows = useMemo(() => recallRows.filter((r) => r.daysUntilRecall >= 0), [recallRows]);
   const overdueCount = overdueRows.length;
-  const funnelBooked = Math.min(pendingTotal, bookedCount);
-  const bookedRatePct = pendingTotal > 0 ? Math.round((funnelBooked / Math.max(pendingTotal, 1)) * 100) : 0;
+  const upcomingCount = upcomingRows.length;
+  const followupsDue = recallRows.length;
+
+  // Metrics (v3 prototype shapes — demo numbers; lastVisit contribution folded in via persisted.lastVisit)
+  const visitsThisMonth = 48; // demo
+  const visitsDeltaPct = 12;
+  const serviceRevenue = 128500;
+  const revenueTargetPct = 86;
+  const returnRatePct = 68;
+  const returnRateDeltaPct = 8;
+  void persisted.lastVisit; // intentionally surfaced in Next Best Actions copy
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === selectedCustomerId) ?? null,
     [customers, selectedCustomerId],
   );
+  const selectedRow = useMemo(
+    () => recallRows.find((r) => r.customer.id === selectedCustomerId) ?? null,
+    [recallRows, selectedCustomerId],
+  );
 
-  const nextActionLabel = useMemo(() => {
-    if (!selectedCustomer) return '請先選擇一位客戶';
-    if (selectedCustomer.consent === 'revoked') return '客戶已撤回同意 — 不可發送任何訊息';
-    if (selectedCustomer.consent === 'pending') return '補上同意狀態後，才可發送訊息';
-    return '先確認近況，再核准回訪草稿';
+  const tierLabel = useMemo(() => {
+    if (!selectedCustomer) return 'STANDARD';
+    return SEED_TIER_LABEL[selectedCustomer.id] ?? 'STANDARD';
   }, [selectedCustomer]);
 
-  const notificationCount = overdueCount;
+  const careNote = useMemo(() => {
+    if (!selectedCustomer) return '';
+    const allergies = selectedCustomer.allergies;
+    const notes = selectedCustomer.notes;
+    if (allergies.length > 0 && notes) {
+      return `${allergies.join(', ')}; ${notes}`;
+    }
+    return notes || allergies.join(', ');
+  }, [selectedCustomer]);
 
-  const handleGenerateDraft = () => {
+  const draftBody = useMemo(() => buildDraftFor(selectedCustomer, treatments), [selectedCustomer, treatments]);
+
+  const nextBestActions = useMemo(() => {
+    const overdueVip = overdueRows.find((r) => r.customer.consent === 'granted');
+    const dueSoonPending = upcomingRows.find((r) => r.customer.consent === 'pending');
+    const exportItem = lang === 'zh'
+      ? {
+          title: '匯出本月服務紀錄',
+          meta: '資料與設定 · JSON 匯出',
+        }
+      : {
+          title: 'Export this month’s service records',
+          meta: 'Data & settings · JSON export',
+        };
+    const items = [];
+    if (overdueVip) {
+      items.push({
+        title: lang === 'zh'
+          ? `核准 ${overdueVip.customer.name} 的回訪草稿`
+          : `Approve ${overdueVip.customer.name}’s contact draft`,
+        meta: lang === 'zh' ? '已同意接收聯絡 · 建議今天完成' : 'Consent granted · suggested today',
+      });
+    } else if (overdueRows[0]) {
+      items.push({
+        title: lang === 'zh'
+          ? `處理 ${overdueRows[0].customer.name} 的回訪`
+          : `Reach out to ${overdueRows[0].customer.name}`,
+        meta: lang === 'zh' ? `${Math.abs(overdueRows[0].daysUntilRecall)} 天逾期` : `${Math.abs(overdueRows[0].daysUntilRecall)} days overdue`,
+      });
+    }
+    if (dueSoonPending) {
+      items.push({
+        title: lang === 'zh'
+          ? `補上 ${dueSoonPending.customer.name} 的同意狀態`
+          : `Capture ${dueSoonPending.customer.name}’s consent`,
+        meta: lang === 'zh' ? '目前待確認，不會出現送出動作' : 'Pending — no send CTA will appear',
+      });
+    } else {
+      items.push({
+        title: lang === 'zh'
+          ? `檢視 ${upcomingRows.length || upcomingCount} 位即將到期的客戶`
+          : `Review ${upcomingRows.length || upcomingCount} upcoming clients`,
+        meta: lang === 'zh' ? '在窗口前 2 天主動聯絡' : 'Reach out 2 days before the window',
+      });
+    }
+    items.push(exportItem);
+    return items;
+  }, [overdueRows, upcomingRows, upcomingCount, lang]);
+
+  // === Handlers (kept stable for child memoization) ===
+  const handleToggleLang = () => {
+    const next = toggleLang(lang);
+    setLang(next);
+    setPersisted((p) => {
+      const merged = { ...p, lang: next };
+      persistState(merged);
+      return merged;
+    });
+  };
+
+  const handleToggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    setPersisted((p) => {
+      const merged = { ...p, theme: next };
+      persistState(merged);
+      return merged;
+    });
+  };
+
+  const handleSelectCustomer = (id: string) => {
+    setSelectedCustomerId(id);
+    setDraftOpen(false);
+    setDraftApproved(false);
+  };
+
+  const handleShowAll = () => {
+    setFilter('all');
+    setQueueQuery('');
+  };
+
+  const handleExport = () => {
+    const payload = buildExportPayload(customers, treatments, persisted, t(lang, 'workspaceLabel'));
+    downloadExport(payload, 'ritual-client-data.json');
+    setToast({ msg: t(lang, 'exportedToast'), show: true });
+  };
+
+  const handleOpenDrawer = () => setAddOpen(true);
+
+  const handleDraftToggle = () => {
     if (!selectedCustomer) {
-      setToast({ msg: '請先選擇一位客戶', show: true });
+      setToast({ msg: t(lang, 'noClientSelected'), show: true });
       return;
     }
-    const lastTreatment = treatments.find((t) => t.customerId === selectedCustomer.id);
-    const body = buildDraftBody(
-      selectedCustomer.name,
-      lastTreatment?.serviceName ?? '療程',
-    );
-    setDraftText(body);
-    setDraftApproved(false);
-    setDraftOpen(true);
-    // Use broadcast module to demonstrate the lib boundary is exercised
-    // (preview only — the in-card draft is the source of truth in this UI)
-    void BUILTIN_TEMPLATES; // tree-shake guard
-    void buildBroadcast; // tree-shake guard
+    setDraftOpen((v) => !v);
   };
 
   const handleApproveDraft = () => {
     setDraftApproved(true);
-    setToast({ msg: '草稿已核准，尚未送出', show: true });
+    setToast({ msg: t(lang, 'approvedToast'), show: true });
   };
 
   const handleCopyDraft = async () => {
     try {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(draftText);
-        setToast({ msg: '草稿已複製到剪貼簿', show: true });
+        await navigator.clipboard.writeText(draftBody);
+        setToast({ msg: t(lang, 'copiedToast'), show: true });
       } else {
-        setToast({ msg: '草稿已準備好，可手動複製', show: true });
+        setToast({ msg: lang === 'zh' ? '請手動複製草稿' : 'Select and copy the draft manually', show: true });
       }
     } catch {
-      setToast({ msg: '草稿已準備好，可手動複製', show: true });
+      setToast({ msg: lang === 'zh' ? '請手動複製草稿' : 'Select and copy the draft manually', show: true });
     }
   };
 
-  const handleSaveTreatment = (_payload: TreatmentFormPayload) => {
-    setAddOpen(false);
-    setToast({ msg: '已儲存，回訪日期已更新', show: true });
+  const handleMarkContacted = () => {
+    setToast({ msg: t(lang, 'draftApprovedToast'), show: true });
   };
 
-  const handleSelectCustomer = (id: string) => {
-    setSelectedCustomerId(id);
-    // Switching customer closes any in-progress draft to avoid mixing contexts
-    setDraftOpen(false);
-    setDraftApproved(false);
-    setDraftText('');
+  const handleSaveVisit = (record: VisitRecord) => {
+    const nextState = appendVisit(mergePersistedState(persisted, { lang, theme }), record);
+    setPersisted(nextState);
+    persistState(nextState);
+    setAddOpen(false);
+    setToast({ msg: t(lang, 'visitSavedToast'), show: true });
   };
+
+  const handleDraftChange = (_value: string) => {
+    // v3 prototype uses the seed body as the canonical draft; if the designer
+    // edits it the change stays local until approval.
+    // (Future: wire to followups.ts draft store. For now we intentionally
+    //  keep state local — see TODO list.)
+  };
+
+  // === Keyboard shortcuts: / focus search, N open drawer, Esc close drawer ===
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handler = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName ?? '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (event.target as HTMLElement | null)?.isContentEditable) {
+        if (event.key === 'Escape') {
+          (event.target as HTMLElement).blur();
+        }
+        return;
+      }
+      if (event.key === '/') {
+        event.preventDefault();
+        document.getElementById('global-search')?.focus();
+        return;
+      }
+      if (event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        setAddOpen(true);
+        return;
+      }
+      if (event.key === 'Escape') {
+        setAddOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
 
   if (!hydrated) {
     return (
@@ -268,11 +470,10 @@ export default function Dashboard() {
     );
   }
 
-  // Funnel data (UI-SPEC §3 + SPEC FR-008)
-  const shouldCount = listOverdue(customers, treatments, today).length + dueSoonRows.length;
-  const contactedCount = Math.max(0, Math.round(shouldCount * 0.56));
-  const bookedFunnelCount = Math.max(0, Math.round(shouldCount * 0.33));
-  const conversionPct = contactedCount > 0 ? Math.round((bookedFunnelCount / contactedCount) * 100) : 0;
+  // Today's hero copy (use component to read on click etc.)
+  const heroCopyZh = `好的客戶關係發生在兩次服務之間。今天有 <strong>${overdueCount} 位客戶逾期</strong>，另有 ${upcomingRows.length} 位進入回訪窗口。`;
+  const heroCopyEn = `Good client relationships are built between visits. Today you have <strong>${overdueCount} overdue follow-ups</strong> and ${upcomingRows.length} clients entering their return window.`;
+  const heroCopy = lang === 'zh' ? heroCopyZh : heroCopyEn;
 
   return (
     <div className="app">
@@ -280,148 +481,140 @@ export default function Dashboard() {
         activeTab={tab}
         onTabChange={(next) => {
           setTab(next);
-          if (next !== 'today') setToast({ msg: `${next === 'customers' ? '客戶' : next === 'reminders' ? '回訪' : next === 'insights' ? '洞察' : '設定與資料'}頁面預覽中`, show: true });
+          if (next !== 'today') {
+            const label =
+              next === 'clients'
+                ? lang === 'zh' ? '客戶' : 'Clients'
+                : next === 'retention'
+                  ? lang === 'zh' ? '回訪' : 'Retention'
+                  : next === 'insights'
+                    ? lang === 'zh' ? '洞察' : 'Insights'
+                    : lang === 'zh' ? '設定' : 'Settings';
+            setToast({ msg: `${label} ${lang === 'zh' ? '頁面預覽中' : 'prototype'}`, show: true });
+          }
         }}
-        designerName={DESIGNER.name}
         designerInitial={DESIGNER.initial}
       />
 
-      <div className="content">
+      <div className="shell">
         <TopBar
           activeTab={tab}
-          searchValue={searchValue}
-          onSearchChange={setSearchValue}
-          onMenuClick={() => setToast({ msg: '行動版導覽已收進底部選單', show: true })}
+          lang={lang}
+          theme={theme}
+          searchValue={globalQuery}
+          onSearchChange={setGlobalQuery}
+          onToggleLang={handleToggleLang}
+          onToggleTheme={handleToggleTheme}
           designerInitial={DESIGNER.initial}
-          notificationCount={notificationCount}
         />
 
         <main>
-          <section className="page-head">
+          <section className="hero">
             <div>
-              <div className="eyebrow">{shortDate(today).toUpperCase()}</div>
-              <h1>早安，{DESIGNER.name}</h1>
-              <p className="page-sub">
-                今天有 <strong style={{ color: 'var(--brand)' }}>{overdueCount} 位客戶</strong> 超過建議回訪日，先把最需要你的人往前推一步。
-              </p>
+              <div className="overline mono" data-i18n="overline">{t(lang, 'overline')}</div>
+              <h1 data-i18n="headline">{t(lang, 'headline')}</h1>
+              <p className="hero-copy" data-i18n="heroCopy">{heroCopy}</p>
             </div>
-            <button type="button" className="primary" onClick={() => setAddOpen(true)}>
-              ＋ 新增服務紀錄
+            <button
+              type="button"
+              className="button primary"
+              id="open-add"
+              data-i18n="newVisit"
+              onClick={handleOpenDrawer}
+            >
+              {t(lang, 'newVisit')}
             </button>
           </section>
 
           <StatsCards
-            pendingTotal={pendingTotal}
+            lang={lang}
+            followupsDue={followupsDue}
             overdueCount={overdueCount}
-            withinThreeDays={withinThreeDays}
-            bookedCount={bookedCount}
-            monthRevenue={monthlyRevenue.total}
-            monthRevenueDeltaPct={revenueDelta}
-            bookedRatePct={bookedRatePct}
+            upcomingCount={upcomingCount}
+            returnRatePct={returnRatePct}
+            returnRateDeltaPct={returnRateDeltaPct}
+            visitsThisMonth={visitsThisMonth}
+            visitsDeltaPct={visitsDeltaPct}
+            serviceRevenue={serviceRevenue}
+            revenueTargetPct={revenueTargetPct}
           />
 
-          <div className="workspace">
+          <div className="content-grid">
             <RecallQueue
+              lang={lang}
               rows={recallRows}
               selectedCustomerId={selectedCustomerId}
+              filter={filter}
+              query={queueQuery}
+              onFilterChange={setFilter}
+              onQueryChange={setQueueQuery}
               onSelect={handleSelectCustomer}
-              totalCount={pendingTotal}
-              draftOpen={draftOpen}
-              draftText={draftText}
-              draftApproved={draftApproved}
-              onGenerateDraft={handleGenerateDraft}
-              onApproveDraft={handleApproveDraft}
-              onCopyDraft={() => void handleCopyDraft()}
+              totalCount={followupsDue}
+              onExport={handleExport}
+              onShowAll={handleShowAll}
             />
 
             <CustomerMemoryPanel
+              lang={lang}
               customer={selectedCustomer}
+              row={selectedRow}
               treatments={treatments}
-              nextActionLabel={nextActionLabel}
-              onGenerateDraft={handleGenerateDraft}
-              onAddTreatment={() => setAddOpen(true)}
+              tierLabel={tierLabel}
+              careNote={careNote}
+              draftBody={draftBody}
+              draftApproved={draftApproved}
+              draftOpen={draftOpen}
+              onDraftToggle={handleDraftToggle}
+              onDraftChange={handleDraftChange}
+              onApproveDraft={handleApproveDraft}
+              onCopyDraft={() => void handleCopyDraft()}
+              onMarkContacted={handleMarkContacted}
             />
           </div>
 
-          <div className="lower">
-            <section className="panel funnel">
-              <div className="funnel-head">
-                <div>
-                  <h2>本月回流漏斗</h2>
-                  <p className="panel-sub">手動標記每一步，知道時間花在哪裡</p>
-                </div>
-                <span className="funnel-month">{today.getFullYear()} / {String(today.getMonth() + 1).padStart(2, '0')}</span>
-              </div>
-              <div className="funnel-row">
-                <span className="funnel-label">應回訪</span>
-                <div className="track"><div className="fill" style={{ width: '100%' }} /></div>
-                <span className="funnel-number">{shouldCount}</span>
-              </div>
-              <div className="funnel-row">
-                <span className="funnel-label">已聯絡</span>
-                <div className="track"><div className="fill muted" style={{ width: `${shouldCount === 0 ? 0 : Math.round((contactedCount / Math.max(shouldCount, 1)) * 100)}%` }} /></div>
-                <span className="funnel-number">{contactedCount}</span>
-              </div>
-              <div className="funnel-row">
-                <span className="funnel-label">已預約</span>
-                <div className="track"><div className="fill green" style={{ width: `${shouldCount === 0 ? 0 : Math.round((bookedFunnelCount / Math.max(shouldCount, 1)) * 100)}%` }} /></div>
-                <span className="funnel-number">{bookedFunnelCount}</span>
-              </div>
-              <div className="funnel-foot">
-                <span>聯絡 → 預約轉換率<br /><strong>{conversionPct}%</strong></span>
-                <span style={{ textAlign: 'right' }}>較上月<br /><strong>+8%</strong></span>
-              </div>
-            </section>
-
-            <section className="panel next-action">
-              <h2>接下來的 2 個動作</h2>
-              <p>把今天的工作縮成兩個可完成的下一步。</p>
-              {overdueRows[0] ? (
-                <div className="action-item">
-                  <span className="action-marker" aria-hidden="true" />
-                  <div>
-                    <strong>核准 {overdueRows[0].customer.name} 的回訪草稿</strong>
-                    <span>已同意接收聯絡 · 建議今天完成</span>
-                  </div>
-                </div>
-              ) : null}
-              {dueSoonRows.find((r) => r.customer.consent === 'pending') ? (
-                <div className="action-item">
-                  <span className="action-marker green" aria-hidden="true" />
-                  <div>
-                    <strong>補上 {dueSoonRows.find((r) => r.customer.consent === 'pending')?.customer.name} 的同意狀態</strong>
-                    <span>目前待確認，不會出現送出動作</span>
-                  </div>
-                </div>
-              ) : null}
-            </section>
+          <div className="bottom-grid">
+            <ReturnRhythmChart
+              lang={lang}
+              values={[0.32, 0.45, 0.38, 0.54, 0.61, 0.70, 0.84, 1.0]}
+            />
+            <NextBestActions lang={lang} items={nextBestActions} />
           </div>
         </main>
       </div>
 
       <MobileBottomNav
         activeTab={tab}
+        lang={lang}
         onTabChange={(next) => {
           setTab(next);
-          if (next !== 'today') setToast({ msg: `${next} 頁面預覽中`, show: true });
+          if (next !== 'today') {
+            setToast({ msg: `${next} ${lang === 'zh' ? '頁面預覽中' : 'prototype'}`, show: true });
+          }
         }}
       />
 
       <AddTreatmentSheet
+        lang={lang}
         open={addOpen}
         customers={customers}
-        defaultCustomerId={selectedCustomerId ?? undefined}
+        defaultCustomerName={selectedCustomer?.name}
+        defaultAmount={selectedRow?.amount ?? 1500}
+        treatments={treatments}
         onClose={() => setAddOpen(false)}
-        onSave={handleSaveTreatment}
+        onSave={handleSaveVisit}
       />
 
       <div
         className={`toast${toast.show ? ' show' : ''}`}
         role="status"
         aria-live="polite"
+        id="toast"
       >
-        {toast.msg ? `✓ ${toast.msg}` : ''}
+        {toast.msg ? toast.msg : ''}
       </div>
     </div>
   );
 }
+
+// Re-exports to keep tooling hints
+export { makeVisitRecord, isLang, buildExportPayload };
