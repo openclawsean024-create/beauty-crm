@@ -17,6 +17,14 @@ import {
   type VisitRecord,
 } from '@/lib/persistence';
 import { buildExportPayload, downloadExport } from '@/lib/export';
+import {
+  applyApprove,
+  applyReset,
+  applyUpdateBody,
+  draftGateReason,
+  initDraftFor,
+  type FollowupDraft,
+} from '@/lib/followups';
 
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -191,7 +199,13 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<QueueFilter>('all');
   const [addOpen, setAddOpen] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);
-  const [draftApproved, setDraftApproved] = useState(false);
+  // FollowupDraft is the canonical draft state — see lib/followups.ts.
+  // The boolean `draftApproved` shown to children is derived from
+  // `draft?.status === 'approved'`, which preserves the public prop contract
+  // for CustomerMemoryPanel / DraftComposer while routing every transition
+  // through the pure-function state machine (approveDraft / resetDraft).
+  const [draft, setDraft] = useState<FollowupDraft | null>(null);
+  const draftApproved = draft?.status === 'approved';
   const [toast, setToast] = useState<{ msg: string; show: boolean }>({ msg: '', show: false });
   const [hydrated, setHydrated] = useState(false);
 
@@ -299,7 +313,14 @@ export default function Dashboard() {
     return notes || allergies.join(', ');
   }, [selectedCustomer]);
 
-  const draftBody = useMemo(() => buildDraftFor(selectedCustomer, treatments), [selectedCustomer, treatments]);
+  // draftBody shown to the composer: prefer the body already on the canonical
+  // FollowupDraft state (so a re-open preserves user edits), falling back
+  // to the computed seed body for the currently selected customer.
+  const seedDraftBody = useMemo(
+    () => buildDraftFor(selectedCustomer, treatments),
+    [selectedCustomer, treatments],
+  );
+  const draftBody = draft?.body ?? seedDraftBody;
 
   const nextBestActions = useMemo(() => {
     const overdueVip = overdueRows.find((r) => r.customer.consent === 'granted');
@@ -372,7 +393,7 @@ export default function Dashboard() {
   const handleSelectCustomer = (id: string) => {
     setSelectedCustomerId(id);
     setDraftOpen(false);
-    setDraftApproved(false);
+    setDraft(null);
   };
 
   const handleShowAll = () => {
@@ -393,12 +414,36 @@ export default function Dashboard() {
       setToast({ msg: t(lang, 'noClientSelected'), show: true });
       return;
     }
+    // Lazy-seed the canonical draft state on first open so the state machine
+    // owns every transition. Body is pre-filled with the computed seed body
+    // (broadcast template + customer memory) so the designer can refine
+    // rather than start blank.
+    if (!draft || draft.customerId !== selectedCustomer.id) {
+      const seeded = initDraftFor(selectedCustomer.id, seedDraftBody);
+      if (seeded) setDraft(seeded);
+    }
     setDraftOpen((v) => !v);
   };
 
   const handleApproveDraft = () => {
-    setDraftApproved(true);
+    // Defense-in-depth: BroadcastGuard already hides the toggle button when
+    // consent is not granted, but the pure-function state machine should
+    // still gate the transition so any future entry path stays correct.
+    const customer = selectedCustomer;
+    if (!customer) return;
+    const result = applyApprove(draft, customer.consent);
+    if (result.kind === 'noop') {
+      setToast({ msg: draftGateReason(customer.consent) ?? t(lang, 'consentRequiredHint'), show: true });
+      return;
+    }
+    setDraft(result.draft);
     setToast({ msg: t(lang, 'approvedToast'), show: true });
+  };
+
+const handleResetDraft = () => {
+    const result = applyReset(draft);
+    if (result.kind === 'noop') return;
+    setDraft(result.draft);
   };
 
   const handleCopyDraft = async () => {
@@ -426,11 +471,14 @@ export default function Dashboard() {
     setToast({ msg: t(lang, 'visitSavedToast'), show: true });
   };
 
-  const handleDraftChange = (_value: string) => {
-    // v3 prototype uses the seed body as the canonical draft; if the designer
-    // edits it the change stays local until approval.
-    // (Future: wire to followups.ts draft store. For now we intentionally
-    //  keep state local — see TODO list.)
+  const handleDraftChange = (value: string) => {
+    // Designer edits flow through applyUpdateBody so the canonical
+    // FollowupDraft owns every field. Status transitions still flow through
+    // approveDraft / resetDraft; body edits never transition the state
+    // machine on their own.
+    const result = applyUpdateBody(draft, value);
+    if (result.kind === 'noop') return;
+    setDraft(result.draft);
   };
 
   // === Keyboard shortcuts: / focus search, N open drawer, Esc close drawer ===
@@ -569,6 +617,7 @@ export default function Dashboard() {
               onApproveDraft={handleApproveDraft}
               onCopyDraft={() => void handleCopyDraft()}
               onMarkContacted={handleMarkContacted}
+              onResetDraft={handleResetDraft}
             />
           </div>
 

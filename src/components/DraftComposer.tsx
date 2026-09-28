@@ -11,6 +11,7 @@ interface DraftComposerProps {
   onToggle: () => void;
   onApprove: () => void;
   onCopy: () => void;
+  onResetDraft?: () => void;
 }
 
 /**
@@ -29,6 +30,7 @@ export default function DraftComposer({
   onToggle,
   onApprove,
   onCopy,
+  onResetDraft,
 }: DraftComposerProps) {
   return (
     <div className={`draft${open ? ' open' : ''}`} id="draft">
@@ -77,6 +79,19 @@ export default function DraftComposer({
           >
             {t(lang, 'copy')}
           </button>
+          {approved && onResetDraft ? (
+            <button
+              type="button"
+              className="button secondary"
+              id="reset-draft"
+              data-i18n="resetDraft"
+              aria-label={t(lang, 'resetDraft')}
+              onClick={onResetDraft}
+              disabled={!body.trim()}
+            >
+              {t(lang, 'resetDraft')}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
