@@ -34,6 +34,7 @@ export interface LocaleMessages {
   draftNote: string;
   approve: string;
   copy: string;
+  resetDraft: string;
   // Insight
   insightTitle: string;
   insightSubtitle: string;
@@ -99,6 +100,7 @@ const ZH: LocaleMessages = {
   draftNote: '送出前請人工確認。Ritual 不會自動發送客戶訊息。',
   approve: '核准待發送',
   copy: '複製文字',
+  resetDraft: '重設為草稿',
   insightTitle: '回流節奏',
   insightSubtitle: '最近 8 週進入回訪窗口的服務數。',
   nextTitle: '本週下一步',
@@ -160,6 +162,7 @@ const EN: LocaleMessages = {
   draftNote: 'Review before sending. Ritual never sends client messages automatically.',
   approve: 'Approve for sending',
   copy: 'Copy text',
+  resetDraft: 'Reset to draft',
   insightTitle: 'Return rhythm',
   insightSubtitle: 'Visits entering a follow-up window, last 8 weeks.',
   nextTitle: 'Next best actions',

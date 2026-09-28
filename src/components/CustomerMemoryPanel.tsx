@@ -25,6 +25,7 @@ interface CustomerMemoryPanelProps {
   onApproveDraft: () => void;
   onCopyDraft: () => void;
   onMarkContacted: () => void;
+  onResetDraft?: () => void;
 }
 
 function initialOf(name: string): string {
@@ -57,6 +58,7 @@ export default function CustomerMemoryPanel({
   onApproveDraft,
   onCopyDraft,
   onMarkContacted,
+  onResetDraft,
 }: CustomerMemoryPanelProps) {
   if (!customer) {
     return (
@@ -210,6 +212,7 @@ export default function CustomerMemoryPanel({
         onToggle={onDraftToggle}
         onApprove={onApproveDraft}
         onCopy={onCopyDraft}
+        {...(onResetDraft ? { onResetDraft } : {})}
       />
     </aside>
   );

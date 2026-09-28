@@ -47,6 +47,85 @@ export function resetDraft(draft: FollowupDraft): FollowupDraft {
   return { ...draft, status: 'draft', updatedAt: new Date().toISOString() };
 }
 
+/**
+ * Wiring helper used by the dashboard approve handler.
+ *
+ * Combines the consent gate (defense-in-depth) with the state-machine
+ * transition in one pure step. Returns either:
+ * - `{ kind: 'approved', draft }` — transition succeeded.
+ * - `{ kind: 'noop' }` — no transition (no draft, wrong status, or no consent).
+ *
+ * Centralising the rule here lets the UI handler stay a one-liner and lets
+ * tests assert the exact wiring contract.
+ */
+export function applyApprove(
+  draft: FollowupDraft | null,
+  consent: ConsentStatus,
+): { kind: 'approved'; draft: FollowupDraft } | { kind: 'noop' } {
+  if (!draft) return { kind: 'noop' };
+  if (!canActOnDraft(consent)) return { kind: 'noop' };
+  if (draft.status !== 'draft') return { kind: 'noop' };
+  return { kind: 'approved', draft: approveDraft(draft) };
+}
+
+/**
+ * Wiring helper used by the dashboard reset handler.
+ *
+ * Returns `{ kind: 'reset', draft }` if a reset happened, otherwise `{ kind: 'noop' }`.
+ * Status 'draft' and missing drafts are no-ops to avoid churning `updatedAt`.
+ */
+export function applyReset(
+  draft: FollowupDraft | null,
+): { kind: 'reset'; draft: FollowupDraft } | { kind: 'noop' } {
+  if (!draft || draft.status === 'draft') return { kind: 'noop' };
+  return { kind: 'reset', draft: resetDraft(draft) };
+}
+
+/**
+ * Lazy-seed a draft for the given customer. Returns null if no customer id.
+ *
+ * Used by the dashboard "view draft" toggle so every transition flows
+ * through this state machine even on the first open. `body` is optional —
+ * the dashboard passes the computed seed body so the textarea is pre-filled
+ * with the designer-tuned draft content (per broadcast templates +
+ * customer memory) rather than starting blank.
+ */
+export function initDraftFor(
+  customerId: string | undefined | null,
+  body: string = '',
+): FollowupDraft | null {
+  if (!customerId) return null;
+  return {
+    customerId,
+    status: 'draft',
+    body,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Update the draft body. Status is preserved (body edits never transition
+ * the state machine). `updatedAt` is reassigned so re-opens show the latest
+ * edit time.
+ *
+ * Returns `{ kind: 'updated', draft }` on success, `{ kind: 'noop' }` when
+ * there is no draft to edit (the dashboard treats both as a no-op state
+ * update, so the contract is symmetric with applyApprove / applyReset).
+ */
+export function applyUpdateBody(
+  draft: FollowupDraft | null,
+  body: string,
+): { kind: 'updated'; draft: FollowupDraft } | { kind: 'noop' } {
+  if (!draft) return { kind: 'noop' };
+  // No-op when the new body is identical to avoid churning updatedAt on
+  // every controlled-component re-render (textarea fires on every keystroke).
+  if (draft.body === body) return { kind: 'noop' };
+  return {
+    kind: 'updated',
+    draft: { ...draft, body, updatedAt: new Date().toISOString() },
+  };
+}
+
 // === Recall template ===
 
 export interface RecallTemplateEntry {
