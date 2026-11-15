@@ -14,15 +14,13 @@
 ```
 src/
 ├── app/                    # Next.js App Router：layout.tsx、page.tsx（→ Dashboard）、globals.css
-├── components/
-│   ├── Dashboard.tsx       # 目前唯一入口「今日工作台」（seed 資料在此檔）
-│   ├── RecallQueue.tsx、CustomerMemoryPanel.tsx、AddTreatmentSheet.tsx、DraftComposer.tsx、
-│   │   BroadcastGuard.tsx、StatsCards.tsx、Sidebar.tsx、TopBar.tsx、MobileBottomNav.tsx …
-│   ├── dashboard-types.ts
-│   └── workbench/          # 另一套工作台（含 Funnel），目前未被任何頁面引用
-└── lib/                    # 純函式 domain：customers、treatments、reminders、followups、
-                            # tiers、analytics、broadcast、persistence、export、i18n
-tests/                      # Vitest 單元／整合測試（12 檔）
+├── components/             # 唯一一套工作台：Dashboard.tsx 與分頁（Clients／Retention／Insights／Settings）、
+│                           # CustomerMemoryPanel、AddTreatmentSheet、CustomerSheet、Funnel、SessionSwitcher…
+└── lib/                    # 純函式 domain（皆有測試）：customers、treatments、reminders、followups、tiers、
+                            # analytics、broadcast、persistence、export、i18n；M1 新增 packages、appointments、
+                            # effects、accounts、service-catalog、calendar、dates、crm-store、local-store、
+                            # permissions、sensitive、recall-settings、recall-queue、kpi、line-reminder、seed
+tests/                      # Vitest（26 檔）；tests/e2e 為 Playwright；tests/helpers、tests/fixtures
 PRD/                        # SPEC.md、UI-SPEC.md、CHANGELOG.md
 *.html（根目錄）            # 靜態設計原型，不參與 build
 rpb-*.log（根目錄）         # 舊的建置／測試紀錄，已被 .gitignore 規則涵蓋但仍在版控
@@ -32,14 +30,14 @@ rpb-*.log（根目錄）         # 舊的建置／測試紀錄，已被 .gitigno
 
 | 項目 | 版本／說明 |
 |---|---|
-| 框架 | Next.js（`package.json` 為 `latest`；2026-11-16 安裝結果 16.2.10，App Router + Turbopack，`output: 'standalone'`） |
+| 框架 | Next.js 16.2.10（固定版本，App Router + Turbopack） |
 | UI | React 19，自有 CSS token（`src/app/globals.css`），無 UI 套件 |
 | 語言 | TypeScript 5.6 strict，路徑別名 `@/* → src/*` |
-| 測試 | Vitest 2.1（`environment: node`，`tests/**/*.test.ts`） |
+| 測試 | Vitest 2.1（`environment: node`，`tests/**/*.test.ts`）；Playwright 1.65.1（`tests/e2e`） |
 | Lint | ESLint 9 flat config + `eslint-config-next` |
-| 資料 | 無後端、無 DB；seed 寫在元件內；部分設定與 `visitLog` 存 localStorage |
+| 資料 | 無後端、無 DB；示範資料在 `src/lib/seed.ts`；全部資料存 localStorage（S 級欄位另存並 Base64 編碼） |
 | Node | `.nvmrc` = 20；`engines.node >= 20` |
-| 部署 | `vercel.json`（`npm ci` + `npm run build`）；CI 在 main push 時部署 Vercel |
+| 部署 | `vercel.json`（`npm ci` + `npm run build`）；CI 只能手動觸發 production 部署 |
 
 ## 4. 開發規則
 
@@ -55,4 +53,4 @@ rpb-*.log（根目錄）         # 舊的建置／測試紀錄，已被 .gitigno
 
 ## 5. 驗證
 
-指令與目前可用狀態見 [`SOP.md`](./SOP.md)。尚未配置的指令（typecheck、e2e、format）不得宣稱已通過。
+指令與目前可用狀態見 [`SOP.md`](./SOP.md)。尚未配置的指令（format）不得宣稱已通過。
