@@ -2,10 +2,10 @@
 
 ## 規格對齊狀態（2026-11-16）
 
-- ✅ `PRD/SPEC.md` v4.0 已依實際程式重建；`GOAL.md` 定義 M1。
-- ⚠️ 本次只重建文件，尚未依 v4.0 開發。
-- ⚠️ `beauty-crm-concierge` 尚未併入（M1 AC-001／AC-002）。
-- ⚠️ open PR #1 與分支 `fix/v0.3.0-round3`、`fix/v0.4.0-ui-redesign` 未合併，去留待 Sean 決定。
+- ✅ `PRD/SPEC.md` v4.0、`GOAL.md` M1。
+- ✅ M1 實作於分支 `feat/m1`，八條 AC 皆有通過的測試（見 `STATUS.md`）。
+- ✅ `beauty-crm-concierge` 選定模組已併入 `src/lib`（concierge repo 未封存）。
+- ⚠️ open PR #1 與分支 `fix/v0.3.0-round3`、`fix/v0.4.0-ui-redesign` 不在 M1 範圍，去留待 Sean 決定。
 
 ## 環境
 
@@ -14,43 +14,55 @@ nvm use          # 讀 .nvmrc（Node 20）
 npm ci           # 使用 package-lock.json（vercel.json 與 CI 也用 npm）
 ```
 
-repo 同時有 `package-lock.json` 與 `pnpm-lock.yaml`；以 npm 為準。`pnpm-workspace.yaml` 內 `allowBuilds` 的值仍是未填的佔位文字，不要用 pnpm 安裝。
+只使用 npm（`package-lock.json`）；pnpm lockfile 已移除。第一次跑 E2E 前執行 `npx playwright install chromium`。
 
 ## 驗證指令（依 `package.json` scripts 查證）
 
-| 類型 | 指令 | 狀態 | 2026-11-16 本機結果 |
-|---|---|---|---|
-| Install | `npm ci` | 可用 | 成功 |
-| Lint | `npm run lint` | 可用（`eslint .`） | exit 0；1 個 warning（`eslint.config.mjs` anonymous default export） |
-| Typecheck | `npm run typecheck` | **尚未配置** | 沒有此 script。直接跑 `npx tsc --noEmit` 目前 exit 2：`tests/persistence.test.ts:154` 型別轉換錯誤（AC-008 處理） |
-| Unit + integration | `npm test` | 可用（`vitest run`） | exit 0；12 檔、77 tests 通過（`tests/integration.test.ts` 含在內） |
-| 單一測試檔 | `npm test -- tests/<檔名>.test.ts` | 可用 | — |
-| Watch | `npm run test:watch` | 可用 | 未執行 |
-| Build | `npm run build` | 可用（`next build`） | exit 0；Next.js 16.2.10，路由 `/`、`/_not-found` |
-| Dev server | `npm run dev` | 可用（`next dev`，http://localhost:3000） | 未執行 |
-| Start | `npm start` | script 存在（`next start`） | **未驗證**；`next.config.mjs` 設 `output: 'standalone'`，正式啟動方式待確認 |
-| E2E | `npm run e2e` | **尚未配置** | 無 Playwright 設定（AC-008 新增） |
-| Format | — | **尚未配置** | 無 formatter |
-| Secret 掃描 | `git grep -nIE "(sk-[A-Za-z0-9]{10,}\|AKIA[0-9A-Z]{12,}\|ghp_[A-Za-z0-9]{20,}\|-----BEGIN)" -- src tests .github` | 可用（git 指令） | 無結果 |
+| 類型 | 指令 | 2026-11-16 本機結果（`feat/m1`） |
+|---|---|---|
+| Install | `npm ci` | 成功 |
+| Lint | `npm run lint` | exit 0；0 problems |
+| Typecheck | `npm run typecheck`（`tsc --noEmit`） | exit 0 |
+| Unit + integration | `npm test`（`vitest run`） | exit 0；26 檔、241 tests |
+| 單一測試檔 | `npm test -- tests/<檔名>.test.ts` | — |
+| Watch | `npm run test:watch` | 未執行 |
+| Build | `npm run build` | exit 0；Next.js 16.2.10 |
+| Dev server | `npm run dev`（http://localhost:3000） | 未執行 |
+| Start | `npm start` | 啟動後 `GET /` 回 200 |
+| E2E | `npm run e2e`（Playwright；自動 build 並 `next start`，固定 `Asia/Taipei`，每個測試清空 localStorage） | exit 0；4 spec、24 tests |
+| 單一 E2E | `npm run e2e -- tests/e2e/<檔名>.spec.ts` | — |
+| Format | — | 尚未配置 |
+| Secret 掃描 | `git grep -nIE "(sk-[A-Za-z0-9]{10,}\|AKIA[0-9A-Z]{12,}\|ghp_[A-Za-z0-9]{20,}\|-----BEGIN)" -- src tests .github` | 無結果 |
 
-本機驗證環境：Node v26.13.1（高於 `.nvmrc` 的 20；CI 用 20）。
+本機驗證環境：Node v26.13.1（`.nvmrc` 為 20；CI 用 20）。
 
-尚未配置的指令不得當成通過。M1 完成時，下列指令須全部 exit 0：
+M1 完成條件，下列指令須全部 exit 0：
 
 ```bash
 npm run lint
-npm run typecheck   # M1 新增
+npm run typecheck
 npm test
 npm run build
-npm run e2e         # M1 新增
+npm run e2e
 ```
+
+### AC 驗證指令對照
+
+| AC | 指令 |
+|---|---|
+| AC-001 | `npm test -- tests/packages.test.ts tests/appointments.test.ts tests/effects.test.ts tests/service-catalog.test.ts tests/accounts.test.ts tests/calendar.test.ts` |
+| AC-002 | `npm run e2e -- tests/e2e/merge-panels.spec.ts` |
+| AC-003 | `npm test -- tests/customer-store.test.ts tests/recall-settings.test.ts`；`npm run e2e -- tests/e2e/add-visit.spec.ts` |
+| AC-004 | `npm test -- tests/line-reminder.test.ts` |
+| AC-005 | `npm test -- tests/permissions.test.ts`；`npm run e2e -- tests/e2e/role-switch.spec.ts` |
+| AC-006 | `npm test -- tests/sensitive-consent.test.ts tests/customer-delete.test.ts`；`npm run e2e -- tests/e2e/consent-mask.spec.ts` |
+| AC-007 | `npm test -- tests/fixtures-safety.test.ts` |
+| AC-008 | `npm test -- tests/quality-gate.test.ts` 與上面五項指令 |
 
 ## CI 現況（`.github/workflows/ci.yml`）
 
-- lint job 設 `continue-on-error: true`；test job 為 `npm test -- --run 2>&1 || echo "no test script"`，**測試失敗也不會讓 CI 失敗**。
-- build 後上傳 `dist/`，但 Next 不產生 `dist/`（`if-no-files-found: ignore`）。
-- main push 會用 `VERCEL_TOKEN` 等 secrets 部署 Vercel production。
-- 以上在 M1 AC-008 修正；本次文件 PR 不改 CI。
+- lint、typecheck、test、build、e2e 五個 job，任一失敗即失敗；沒有 `continue-on-error` 或 `|| echo`。
+- Production 部署只能透過 `workflow_dispatch` 手動勾選 `deploy_production`，且需五個 job 全部通過；push 不會部署。
 
 ## M1 開發流程
 

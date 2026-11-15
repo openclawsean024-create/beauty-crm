@@ -126,3 +126,26 @@ export function appendVisit(prev: PersistedState, visit: VisitRecord): Persisted
   const log = prev.visitLog ? [visit, ...prev.visitLog] : [visit];
   return { ...prev, lastVisit: visit, visitLog: log.slice(0, 20) };
 }
+
+/** 刪除客戶時，連同舊版 visitLog／lastVisit 內同名紀錄一併移除（FR-009）。 */
+export function removeVisitsForClient(prev: PersistedState, clientName: string): PersistedState {
+  const next: PersistedState = { ...prev };
+  if (next.visitLog) next.visitLog = next.visitLog.filter((v) => v.clientName !== clientName);
+  if (next.lastVisit?.clientName === clientName) {
+    next.lastVisit = next.visitLog?.[0];
+    if (!next.lastVisit) delete next.lastVisit;
+  }
+  return next;
+}
+
+/** 清除偏好設定與舊版來訪紀錄。成功或本來就沒有 storage 時回傳 true。 */
+export function clearPersistedState(): boolean {
+  const storage = getStorage();
+  if (!storage) return true;
+  try {
+    storage.removeItem(STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}

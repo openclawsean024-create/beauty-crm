@@ -77,3 +77,27 @@ export function suggestNextRecallDate(today: Date, days: number): string {
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
+
+// === M1：草稿內容與編輯（FR-005）===
+
+/** 依客戶與上次服務產生預設回訪草稿內容。 */
+export function buildRecallDraftBody(customerName: string, lastServiceName: string | undefined): string {
+  const service = lastServiceName?.trim() || '服務';
+  return `${customerName} 您好～上次做的${service}差不多到適合整理的時間了，最近狀況還好嗎？如果想回來，我可以先幫您留時段。`;
+}
+
+export function createDraft(customerId: string, body: string, now: Date = new Date()): FollowupDraft {
+  return { customerId, status: 'draft', body, updatedAt: now.toISOString() };
+}
+
+/** 編輯草稿內容。已核准的草稿被改動後退回 draft，必須重新核准才可送出。 */
+export function editDraftBody(draft: FollowupDraft, body: string, now: Date = new Date()): FollowupDraft {
+  if (draft.body === body) return draft;
+  return { ...draft, body, status: 'draft', updatedAt: now.toISOString() };
+}
+
+/** dry-run 送出後的狀態：sent（M1 僅代表已寫入本機發送紀錄，並未真的發送）。 */
+export function markDraftSent(draft: FollowupDraft, now: Date = new Date()): FollowupDraft {
+  if (draft.status !== 'approved') return draft;
+  return { ...draft, status: 'sent', updatedAt: now.toISOString() };
+}

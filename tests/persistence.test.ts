@@ -69,7 +69,7 @@ describe('persistence — local state round-trip', () => {
   it('persists and reloads lang + theme + lastVisit', () => {
     withLocalStorage(() => {
       const visit = makeVisitRecord({
-        clientName: '陳美玲',
+        clientName: '測試客戶 A',
         service: 'Keratin care',
         date: '2026-09-24',
         amount: 2800,
@@ -92,7 +92,7 @@ describe('persistence — local state round-trip', () => {
   it('survives a simulated refresh by reading from localStorage', () => {
     withLocalStorage(() => {
       const visit = makeVisitRecord({
-        clientName: '陳美玲',
+        clientName: '測試客戶 A',
         service: 'Keratin care',
         date: '2026-09-24',
         amount: 2800,
@@ -103,7 +103,7 @@ describe('persistence — local state round-trip', () => {
 
       // simulate full reload by re-reading
       const reloaded = loadPersistedState();
-      expect(reloaded.lastVisit?.clientName).toBe('陳美玲');
+      expect(reloaded.lastVisit?.clientName).toBe('測試客戶 A');
       expect(reloaded.lastVisit?.amount).toBe(2800);
       expect(isLang(reloaded.lang)).toBe(true);
     });
@@ -121,7 +121,7 @@ describe('persistence — local state round-trip', () => {
       state = appendVisit(
         state,
         makeVisitRecord({
-          clientName: `Client ${i}`,
+          clientName: `Test Client ${i}`,
           service: 'Keratin care',
           date: '2026-09-24',
           amount: 100 + i,
@@ -131,12 +131,12 @@ describe('persistence — local state round-trip', () => {
       );
     }
     expect(state.visitLog).toHaveLength(20);
-    expect(state.lastVisit?.clientName).toBe('Client 24');
+    expect(state.lastVisit?.clientName).toBe('Test Client 24');
   });
 
   it('isVisitRecord accepts complete records and rejects incomplete ones', () => {
     const valid = makeVisitRecord({
-      clientName: '陳美玲',
+      clientName: '測試客戶 A',
       service: 'Keratin care',
       date: '2026-09-24',
       amount: 2800,
@@ -144,14 +144,14 @@ describe('persistence — local state round-trip', () => {
       consent: true,
     });
     expect(isVisitRecord(valid)).toBe(true);
-    expect(isVisitRecord({ clientName: 'x' })).toBe(false);
+    expect(isVisitRecord({ clientName: '測試' })).toBe(false);
     expect(isVisitRecord(null)).toBe(false);
     expect(isVisitRecord('not-an-object')).toBe(false);
   });
 
   it('loadPersistedState tolerates corrupt JSON', () => {
     withLocalStorage(() => {
-      const fake = (globalThis as { localStorage?: MemStorage & {
+      const fake = (globalThis as unknown as { localStorage?: MemStorage & {
         getItem: (key: string) => string | null;
         setItem: (key: string, value: string) => void;
         removeItem: (key: string) => void;

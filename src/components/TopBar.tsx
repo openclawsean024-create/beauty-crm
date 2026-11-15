@@ -1,39 +1,52 @@
 'use client';
 
-import { TAB_LABELS, type Tab } from './dashboard-types';
+import type { Account, Store } from '@/lib/accounts';
 import { t, type Lang } from '@/lib/i18n';
 import type { Theme } from '@/lib/persistence';
-import WorkspaceSwitcher from './WorkspaceSwitcher';
+import SessionSwitcher from './SessionSwitcher';
 
 interface TopBarProps {
-  activeTab: Tab;
   lang: Lang;
   theme: Theme;
   searchValue: string;
   onSearchChange: (value: string) => void;
-  onSearchFocus?: () => void;
   onToggleLang: () => void;
   onToggleTheme: () => void;
-  designerInitial: string;
+  accounts: Account[];
+  stores: Store[];
+  accountId: string;
+  storeId: string;
+  onAccountChange: (accountId: string) => void;
+  onStoreChange: (storeId: string) => void;
+  userInitial: string;
 }
 
 export default function TopBar({
-  activeTab,
   lang,
   theme,
   searchValue,
   onSearchChange,
-  onSearchFocus,
   onToggleLang,
   onToggleTheme,
-  designerInitial,
+  accounts,
+  stores,
+  accountId,
+  storeId,
+  onAccountChange,
+  onStoreChange,
+  userInitial,
 }: TopBarProps) {
   return (
     <header className="topbar">
-      <div className="workspace-switcher">
-        <WorkspaceSwitcher lang={lang} />
-        <span style={{ color: 'var(--muted)', fontWeight: 500 }} aria-hidden="true">　/　{TAB_LABELS[activeTab]}</span>
-      </div>
+      <SessionSwitcher
+        lang={lang}
+        accounts={accounts}
+        stores={stores}
+        accountId={accountId}
+        storeId={storeId}
+        onAccountChange={onAccountChange}
+        onStoreChange={onStoreChange}
+      />
 
       <div className="top-actions">
         <label className="command">
@@ -43,7 +56,6 @@ export default function TopBar({
             type="search"
             value={searchValue}
             onChange={(event) => onSearchChange(event.target.value)}
-            onFocus={onSearchFocus}
             placeholder={t(lang, 'commandSearchPlaceholder')}
             aria-label={t(lang, 'searchAria')}
           />
@@ -69,7 +81,7 @@ export default function TopBar({
           <span aria-hidden="true">{theme === 'dark' ? '☀' : '◐'}</span>
         </button>
 
-        <div className="user-avatar" aria-hidden="true">{designerInitial}</div>
+        <div className="user-avatar" aria-hidden="true">{userInitial}</div>
       </div>
     </header>
   );

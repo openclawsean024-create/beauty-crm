@@ -1,54 +1,59 @@
-# Security Notes — beauty-crm v0.2.0
+# Security Notes — beauty-crm（M1）
 
-> 本檔記錄 v0.2.0 時的安全狀態。架構重大變動（例如加 DB / API / 第三方登入）後必須更新。
+> 本檔記錄 M1（分支 `feat/m1`）實際行為。架構變動（後端、登入、加密）後必須更新。
 
 ## 威脅模型
 
-- **資料敏感度**：客戶姓名 / 手機 / 療程紀錄 / 過敏 / 同意狀態。屬個資（PII），但 v1 是 **in-memory prototype**，沒落地。
-- **攻擊面**：純前端 SPA（Next.js App Router + Turbopack）。沒有對外 API、沒有 DB、沒有第三方整合。
-- **信任邊界**：完全信任瀏覽器執行環境。不防 XSS / supply chain / CSRF（這些在沒 backend / 沒寫入 / 沒跨站互動時不適用）。
+- **資料敏感度**：客戶姓名、手機、Email（P 級）；過敏、皮膚狀況、健康備註、Before/After 效果紀錄（S 級，見 SPEC §6）。
+- **攻擊面**：純前端（Next.js）。沒有 API route、沒有後端、沒有資料庫、沒有任何對外網路呼叫。
+- **信任邊界**：完全信任瀏覽器與使用這台裝置的人。**M1 只允許假資料**，不可部署給真實店家使用。
 
-## ✅ 已落實
+## 持久化（實際行為）
 
-| 項目 | 實作位置 | 備註 |
+M1 **有**持久化，全部存在瀏覽器 localStorage：
+
+| key | 內容 | 保護方式 |
 |---|---|---|
-| 沒有 hardcoded secrets | 全 repo | `grep -E "(sk-\|AKIA\|ghp_)"` 0 hit |
-| 沒有 raw exception 吞噬 | 全 repo | `grep -E "catch.*\{\s*$"` 0 hit |
-| 沒有 `console.log` 在 production 路徑 | 全 repo | 全 domain 函式純函式，UI 也無 |
-| React 自動 escape | `src/components/Dashboard.tsx` | 全用 `{value}`，無 `dangerouslySetInnerHTML` |
-| TypeScript strict | `tsconfig.json` | `strict: true` |
-| ESLint | `eslint.config.mjs` | `next/core-web-vitals` + `next/typescript` |
-| CI 跑 lint + test + build | `.github/workflows/ci.yml` | 每次 PR 都驗 |
-| 行銷同意預設值 | `customers.createCustomer` | 預設 `consent: 'pending'`，需明確 granted 才能推播 |
-| 推播前再驗同意 | `broadcast.recheckConsentBeforeSend` | 客戶撤回後即使已被加入清單也不送 |
-| 台灣電話格式驗證 | `customers.createCustomer` | `^09\d{8}$` regex |
-| 過敏成分衝突偵測 | `customers.hasAllergyConflict` | 大小寫不敏感 |
+| `beauty-crm:m1:data` | 一般資料（客戶 P 級欄位、療程、套票、預約、草稿、聯絡／LINE dry-run／同意紀錄、設定） | 明文 JSON；S 級欄位在寫入前已抽離 |
+| `beauty-crm:m1:sensitive` | 過敏、皮膚狀況、健康備註、效果紀錄與膚況指標 | **Base64 編碼，不是加密**：只避免明文出現在開發者工具或截圖中，任何能讀 localStorage 的人都能還原 |
+| `ritual-beauty-crm-v3` | 語言、主題、舊版 visitLog | 明文 |
 
-## ⚠️ v1 限制（架構使然，不在這輪修）
+真正的欄位級加密、金鑰管理與 server-side 儲存屬於 M2。
 
-1. **無持久化**：重新整理就清空。不適合真實營運。
-2. **無認證 / 授權**：任何人打開網站就看得到所有客戶。**不部署到公開 URL。**
-3. **無 audit log**：撤同意 / 編輯 / 推播都不留 trace。
-4. **無 rate limiting / 濫用防護**：UI 端的 local state 沒有 quota。
+## ✅ M1 已落實
 
-## 🔒 v2+ 必須做（架構變動時）
+| 項目 | 實作位置 | 驗證 |
+|---|---|---|
+| 敏感個資同意與行銷同意分開；未同意不可儲存 S 級欄位 | `src/lib/sensitive.ts`、`crm-store.ts` | `tests/sensitive-consent.test.ts` |
+| 撤回敏感個資同意時立即清除 S 級資料與效果紀錄 | `crm-store.setSensitiveConsent` | 同上、`tests/e2e/consent-mask.spec.ts` |
+| 同意紀錄（時間、操作者） | `ConsentRecord` | `tests/sensitive-consent.test.ts` |
+| S 級欄位 UI 預設遮罩，需明確點擊顯示；換客戶後重新遮罩 | `CustomerMemoryPanel.tsx` | `tests/e2e/consent-mask.spec.ts` |
+| 店主可刪除單一客戶（連同全部相關資料）、清除本機全部資料 | `crm-store.deleteCustomer`、`local-store.clearLocalData` | `tests/customer-delete.test.ts` |
+| 匯出檔標註「含個資」、未加密警告與格式版本 | `src/lib/export.ts` | `tests/sensitive-consent.test.ts`、E2E |
+| 權限矩陣：跨店拒絕、S 級只限店主／店長／負責設計師、匯出與刪除只限店主 | `src/lib/permissions.ts` | `tests/permissions.test.ts`（57 tests） |
+| 無權限者拿到的客戶資料已清空 S 級欄位（不只是畫面隱藏） | `permissions.viewCustomer` | 同上 |
+| LINE 只有 dry-run：不讀 LINE 憑證、不連網 | `src/lib/line-reminder.ts` | `tests/line-reminder.test.ts`（mock fetch 呼叫 0 次） |
+| 只用明顯假資料；自動掃描非假號碼與非 example.com Email | `tests/fixtures-safety.test.ts` | — |
+| Before/After 只用內嵌 SVG 示意圖，不載入任何圖片或遠端資源 | `EffectSummary.tsx` | `tests/e2e/merge-panels.spec.ts` |
+| 無 hardcoded secrets | 全 repo | `git grep` secret 掃描無結果 |
+| React 自動 escape，無 `dangerouslySetInnerHTML` | `src/components` | — |
+| CI 不吞錯；production 部署只能手動觸發 | `.github/workflows/ci.yml` | `tests/quality-gate.test.ts` |
 
-- [ ] 加 DB + 後端 API → 同步加 auth (OAuth / email magic link)
-- [ ] 加 audit log 表（who / when / what）
-- [ ] 客戶端同意證明留 screenshot 或雙重 opt-in（個資法 §8）
-- [ ] PII 欄位加密 at rest（DB 層）
-- [ ] API rate limit（建議 60 req/min/user）
-- [ ] CORS / CSP header（Next.js middleware）
-- [ ] Dependency 漏洞掃描（`npm audit` 已在 install 時跑，目前 9 個，後續 sprint 排程修）
-- [ ] 加 SAST / DAST（Strix 或 Semgrep）
+## ⚠️ M1 限制
 
-## 套件漏洞現況
+1. **沒有真實登入**：身分切換是本機示範帳號，任何人都能切成店主。權限只在前端檢查，不是安全邊界。
+2. **沒有加密**：S 級欄位只是 Base64 編碼。
+3. **單一裝置**：沒有同步、沒有備份；清除瀏覽器資料即遺失。
+4. **稽核紀錄不完整**：只有同意變更紀錄；匯出、刪除未記錄（FR-023，M2）。
 
-`npm install` 後 `npm audit` 報告 **9 vulnerabilities (3 moderate / 5 high / 1 critical)**，主要來自 Next.js / eslint 的 transitive deps。本輪不修（會擴大 scope），v2 sprint 排程：
-- 升級 Next.js 16 patch 版
-- 升級 eslint-config-next
-- 評估 vitest 2.x patch
+## 🔒 M2 必須做
+
+- [ ] 後端 + 真實登入 + server-side 權限檢查
+- [ ] S 級欄位欄位級加密，金鑰不入 repo
+- [ ] 稽核紀錄（同意、匯出、刪除）
+- [ ] 隱私權政策與同意書文案（個資法第 8 條告知事項）
+- [ ] CSP header、依賴漏洞掃描
 
 ## 報告問題
 
-發現資安問題請直接聯絡維護者（見 `PRD/SPEC.md` §0 文件資訊表）。
+發現資安問題請直接聯絡維護者。

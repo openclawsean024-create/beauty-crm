@@ -16,7 +16,7 @@ import { listOverdue } from '@/lib/reminders';
 const today = new Date('2026-07-19T00:00:00Z');
 
 function mkC(id: string, opts: Partial<Parameters<typeof createCustomer>[0]> = {}) {
-  return createCustomer({ id, name: `客戶${id}`, phone: '0912345678', ...opts });
+  return createCustomer({ id, name: `測試客戶${id}`, phone: '0900000001', ...opts });
 }
 
 describe('broadcast — 行銷推播', () => {
@@ -27,7 +27,7 @@ describe('broadcast — 行銷推播', () => {
       price: 1200, durationMin: 60, performedAt: '2026-06-20T10:00:00Z',
     });
     const out = renderTemplate('{{name}} 你好，上次做 {{lastService}} {{lastVisit}}', c, [t]);
-    expect(out).toBe('客戶c1 你好，上次做 凝膠美甲 2026-06-20');
+    expect(out).toBe('測試客戶c1 你好，上次做 凝膠美甲 2026-06-20');
   });
 
   it('AC: selectByConsent 只留 granted', () => {

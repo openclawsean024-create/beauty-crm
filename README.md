@@ -1,116 +1,88 @@
-# Beauty CRM — 美業客戶長期管理
+# Beauty CRM — 美業客戶回訪 CRM
 
 > 記得客戶做過什麼、多久該回來、如何在不打擾下追蹤
 
-台灣美業（美甲 / 美睫 / 皮膚管理 / 髮型）店家用的輕量 CRM 工作台。聚焦兩個最痛的問題：
+台灣小型美業店家（美甲／美睫／皮膚管理／髮型）用的回訪工作台。規格見 [`PRD/SPEC.md`](./PRD/SPEC.md) v4.0，目前里程碑見 [`GOAL.md`](./GOAL.md)（M1）。
 
-1. **療程回流**：哪些客戶該回訪了？回訪什麼療程？什麼時候追蹤才不打�？
-2. **客戶記憶**：客戶的偏好 / 過敏 / 同意狀態 / VIP 等級，跨設計師交接不流失。
-
-完整規格見 [`PRD/SPEC.md`](./PRD/SPEC.md)（v3.0，sweet spot 7.6/10、商業化 83.2/100，建議動作 **GO with strict pilot gate**）。
+> ⚠️ **M1 是本機示範版**：沒有後端、沒有真實登入、沒有欄位加密。資料只存在瀏覽器的 localStorage，**只能使用假資料**。LINE 提醒只有 dry-run，不會發送任何訊息。
 
 ---
 
 ## Stack
 
-- **Next.js 16**（App Router + Turbopack）
-- **React 19**
-- **TypeScript 5.6**（strict mode）
-- **Vitest 2.1**（unit + integration 測試）
-- **ESLint 9**（flat config + `next/typescript` rules）
-
-純前端 in-memory 架構（v1 不含 DB / API），seed 資料在 [`src/components/Dashboard.tsx`](./src/components/Dashboard.tsx) 的 `SEED_CUSTOMERS` / `SEED_TREATMENTS`。
+- **Next.js 16.2.10**（固定版本，App Router + Turbopack）
+- **React 19**、**TypeScript 5.6**（strict）
+- **Vitest 2.1**（單元／整合測試）、**Playwright 1.65.1**（E2E）
+- **ESLint 9**（flat config + `next/typescript`）
+- 自有 CSS token（`src/app/globals.css`），不使用 UI 套件
 
 ---
 
 ## Quick Start
 
 ```bash
-# 需要 Node 20+
-nvm use        # 讀 .nvmrc
-
-npm install
+nvm use        # 讀 .nvmrc（Node 20）
+npm ci         # 只使用 package-lock.json
 npm run dev    # http://localhost:3000
-
-# 其他常用指令
-npm test           # vitest 跑 47 個測試
-npm run build      # Next.js production build
-npm run lint       # ESLint
 ```
 
-CI 跑同樣三件事（lint + test + build），見 [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)。
+第一次開啟會載入示範資料（全部虛構：姓名有「示範」前綴、手機 `09000000xx`）。設定分頁可「清除本機全部資料」或「重新載入示範資料」（店主）。
+
+## 指令
+
+| 指令 | 用途 |
+|---|---|
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest：26 個測試檔、241 個測試 |
+| `npm run build` | Next.js production build |
+| `npm start` | 啟動 build 後的版本 |
+| `npm run e2e` | Playwright：4 個 spec、24 個測試（自動 build 並啟動；固定 `Asia/Taipei`、每個測試清空 localStorage） |
+
+第一次跑 E2E 前需要安裝瀏覽器：`npx playwright install chromium`。
+
+CI（[`.github/workflows/ci.yml`](./.github/workflows/ci.yml)）在 PR 與 push 時跑 lint、typecheck、test、build、e2e，任一失敗即失敗。Production 部署**不會**自動觸發，只能手動執行 workflow 並勾選 `deploy_production`，且需全部檢查通過。
 
 ---
+
+## 功能（M1）
+
+- **今日工作台**：回訪佇列（依逾期天數排序）、客戶記憶面板、KPI、回流漏斗（應回訪 → 已聯絡 → 已預約）、回流節奏。所有數字都由資料計算。
+- **客戶記憶面板**：同意狀態（行銷／敏感個資分開）、敏感資料（預設遮罩）、套票剩餘堂數、下次預約、Before/After 效果摘要（本機示意圖，非照片）、回訪草稿。
+- **新增客戶／服務**：服務寫入療程資料並立即重算回訪日；可扣套票；與過敏紀錄衝突時需確認才可儲存。
+- **回訪草稿與 LINE dry-run**：草稿編輯會保存；設計師核准後才可產生 LINE push payload，寫入本機「發送紀錄」，狀態為 `dry-run`，不連網。
+- **多店與權限**：可切換示範帳號（店主／店長／設計師）與店別，畫面依 `can(account, action, resource)` 隱藏資料與動作。
+- **設定**：4 類回訪天數、服務品項、團隊與設計師檔案、匯出（含個資警告）、清除本機資料。
 
 ## 專案結構
 
 ```
 src/
-├── app/                     # Next.js App Router
-│   ├── layout.tsx          # 根 layout (zh-TW lang)
-│   ├── page.tsx            # 首頁 → Dashboard
-│   └── globals.css         # 設計系統 token
-├── components/
-│   └── Dashboard.tsx       # 5 個分頁的單頁工作台（overview / customers / reminders / analytics / broadcast）
-└── lib/                     # 6 個 pure-function domain（P0）
-    ├── customers.ts        # 客戶檔案 + 同意狀態 + 過敏
-    ├── treatments.ts       # 療程紀錄 + 預設回訪天數
-    ├── reminders.ts        # 回訪提醒計算 + 過期清單
-    ├── tiers.ts            # 4 級會員（standard/silver/gold/black）+ 折扣
-    ├── analytics.ts        # 月營收 / LTV / Top spenders
-    └── broadcast.ts        # 推播模板 + 同意過濾 + VIP/過期篩選
-
-tests/                       # 7 個測試檔（vitest，47 個 AC）
-PRD/SPEC.md                  # 規格計劃書 v3.0（不修改 §1-§9 scope）
-.github/workflows/ci.yml     # CI: lint + test + build on push/PR
-.nvmrc                       # Node 版本鎖定
-CHANGELOG.md                 # 版本與重大變更紀錄
-SECURITY_NOTES.md            # 安全相關備註
+├── app/                 # layout、page（→ Dashboard）、globals.css
+├── components/          # 唯一一套工作台：Dashboard 與各分頁、面板、表單
+└── lib/                 # 純函式 domain（皆有測試）
+    ├── customers / treatments / reminders / followups / tiers / analytics / broadcast
+    ├── packages / appointments / effects / accounts / service-catalog / calendar / dates   # 併自 concierge
+    ├── crm-store        # 資料寫入（含權限與同意檢查）
+    ├── local-store      # localStorage 儲存（S 級欄位另存並 Base64 編碼）
+    ├── permissions / sensitive / recall-settings / recall-queue / kpi / line-reminder
+    ├── seed             # 示範資料（全部虛構）
+    └── persistence / export / i18n
+tests/                   # Vitest；tests/e2e 為 Playwright；tests/helpers、tests/fixtures
+PRD/                     # SPEC.md v4.0、UI-SPEC.md（舊）
+*.html（根目錄）         # 靜態設計原型，不參與 build
 ```
 
----
+## 資料儲存
 
-## Domain Logic 速覽
+| localStorage key | 內容 |
+|---|---|
+| `beauty-crm:m1:data` | 客戶一般資料、療程、套票、預約、草稿、聯絡／發送／同意紀錄、設定（JSON，**不含** S 級欄位） |
+| `beauty-crm:m1:sensitive` | 過敏、皮膚狀況、健康備註、效果紀錄（Base64 **編碼，不是加密**） |
+| `ritual-beauty-crm-v3` | 語言、主題（與舊版來訪紀錄） |
 
-| 模組 | 關鍵 API | 用途 |
-|---|---|---|
-| `customers` | `createCustomer` / `toggleConsent` / `searchCustomers` / `hasAllergyConflict` | 客戶檔案 CRUD + 行銷同意 + 過敏衝突偵測 |
-| `treatments` | `recordTreatment` / `treatmentsByCustomer` / `suggestRecallDays` | 療程紀錄 + 4 大類別回訪週期 |
-| `reminders` | `computeReminder` / `listOverdue` / `listDueSoon` | 每位客戶下次回訪日 + 過期清單 |
-| `tiers` | `tierForSpend` / `nextTier` / `progressToNextTier` / `applyDiscount` | 4 級會員 + 折扣計算 |
-| `analytics` | `computeRevenueByMonth` / `computeCustomerLTV` / `topSpenders` | 月營收 / LTV / Top N |
-| `broadcast` | `buildBroadcast` / `selectOverdue` / `selectHighSpenders` / `recheckConsentBeforeSend` | 推播模板 + 客戶篩選 + 送出前再驗同意 |
-
-所有 domain 邏輯都是 **pure function**，沒有副作用，方便測試與未來接 DB。
-
----
-
-## 測試
-
-```bash
-npm test                  # 47 個 AC，7 個 test file，~0.3s
-npm run test:watch        # watch mode
-```
-
-涵蓋範圍：
-- 6 大 domain 各 1 個 unit test file
-- `integration.test.ts` 端到端：新客 → 3 次療程 → 升 silver → 收到回訪推播（撤回同意 → 推播清空）
-- 100 客戶批次效能測試（< 2 秒）
-
----
-
-## 接下來（v2+）
-
-依 SPEC §3.2 / §3.3：
-
-- v2（P1）：localStorage 持久化 / 多店 / 預約衝突
-- v3（P2）：第三方登入 / 簡訊 / LINE OA 整合
-- 市場驗證（§11）：5 訪談 → 5 pilot → landing smoke → build sprint
-
-這些都不在 v1 scope。要擴充請見 SPEC。
-
----
+安全限制見 [`SECURITY_NOTES.md`](./SECURITY_NOTES.md)。
 
 ## License
 
-未指定（v0.2.0 為 internal prototype）。
+未指定（內部原型）。

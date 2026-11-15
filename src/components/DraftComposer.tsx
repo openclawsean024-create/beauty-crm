@@ -1,42 +1,50 @@
 'use client';
 
-import { t, type Lang } from '@/lib/i18n';
+import type { FollowupStatus } from '@/lib/followups';
+import { t, type Lang, type MessageKey } from '@/lib/i18n';
 
 interface DraftComposerProps {
   lang: Lang;
   open: boolean;
-  approved: boolean;
+  status: FollowupStatus;
   body: string;
   onBodyChange: (value: string) => void;
   onToggle: () => void;
   onApprove: () => void;
   onCopy: () => void;
+  onDryRun: () => void;
 }
 
+const STATUS_LABEL: Record<FollowupStatus, MessageKey> = {
+  draft: 'draftStatusDraft',
+  approved: 'draftStatusApproved',
+  sent: 'draftStatusSent',
+};
+
 /**
- * In-card contact draft.
- * - Toggles open / collapsed; never auto-sends.
- * - Body is editable so the designer can refine before approving.
- * - Approve only marks "ready to send"; UI-SPEC v1.1 §3.3 makes this explicit
- *   ("Approve for sending"  ≠  "send automatically").
+ * 回訪草稿。
+ * - 編輯會立即保存；已核准的草稿被改動後退回「草稿」，需重新核准。
+ * - 「核准」不等於發送。M1 的 LINE 提醒只有 dry-run：產生訊息內容與收件者，
+ *   寫入本機紀錄，不會真的送出任何訊息。
  */
 export default function DraftComposer({
   lang,
   open,
-  approved,
+  status,
   body,
   onBodyChange,
   onToggle,
   onApprove,
   onCopy,
+  onDryRun,
 }: DraftComposerProps) {
   return (
     <div className={`draft${open ? ' open' : ''}`} id="draft">
-      <button type="button" className="draft-toggle" id="draft-toggle" onClick={onToggle}>
+      <button type="button" className="draft-toggle" id="draft-toggle" onClick={onToggle} aria-expanded={open}>
         <span>
-          <strong data-i18n="draftTitle">{t(lang, 'draftTitle')}</strong>
+          <strong>{t(lang, 'draftTitle')}</strong>
           <br />
-          <span data-i18n="draftSubtitle">{t(lang, 'draftSubtitle')}</span>
+          <span>{t(lang, 'draftSubtitle')}</span>
         </span>
         <span id="draft-icon" aria-hidden="true">{open ? '−' : '＋'}</span>
       </button>
@@ -48,36 +56,39 @@ export default function DraftComposer({
           aria-label={t(lang, 'draftTitle')}
           rows={4}
         />
-        <div className="draft-note" data-i18n="draftNote">
+        <div className="draft-note">
+          <span className={`status ${status === 'draft' ? 'soon' : 'ok'}`} data-testid="draft-status" data-status={status}>
+            {t(lang, STATUS_LABEL[status])}
+          </span>{' '}
           {t(lang, 'draftNote')}
-          {approved ? (
-            <span style={{ marginLeft: 8, color: 'var(--mint-ink)' }}>
-              {lang === 'zh' ? '（已標記為待發送）' : '(marked ready to send)'}
-            </span>
-          ) : null}
         </div>
         <div className="draft-actions">
           <button
             type="button"
             className="button primary"
             id="approve-draft"
-            data-i18n="approve"
             onClick={onApprove}
-            disabled={approved || !body.trim()}
+            disabled={status !== 'draft' || !body.trim()}
           >
             {t(lang, 'approve')}
           </button>
-          <button
-            type="button"
-            className="button secondary"
-            id="copy-draft"
-            data-i18n="copy"
-            onClick={onCopy}
-            disabled={!body.trim()}
-          >
+          <button type="button" className="button secondary" id="copy-draft" onClick={onCopy} disabled={!body.trim()}>
             {t(lang, 'copy')}
           </button>
         </div>
+        <div className="draft-actions">
+          <button
+            type="button"
+            className="button secondary"
+            id="line-dry-run"
+            data-testid="line-dry-run"
+            onClick={onDryRun}
+            disabled={status !== 'approved'}
+          >
+            {t(lang, 'lineDryRun')}
+          </button>
+        </div>
+        <p className="draft-note">{t(lang, 'lineDryRunNote')}</p>
       </div>
     </div>
   );

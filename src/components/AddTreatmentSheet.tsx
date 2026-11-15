@@ -1,96 +1,91 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { Account } from '@/lib/accounts';
 import type { Customer } from '@/lib/customers';
-import { hasAllergyConflict } from '@/lib/customers';
-import type { Treatment } from '@/lib/treatments';
-import { t, type Lang } from '@/lib/i18n';
-import type { VisitRecord } from '@/lib/persistence';
+import { t, tf, type Lang } from '@/lib/i18n';
+import type { ServicePackage } from '@/lib/packages';
+import { remainingSessions } from '@/lib/packages';
+import type { ServiceItem } from '@/lib/service-catalog';
 
-export interface VisitFormPayload {
-  clientName: string;
-  service: string;
-  date: string;
-  amount: number;
-  note: string;
-  consent: boolean;
+export interface VisitFormValues {
+  customerId: string;
+  catalogItemId: string;
+  date: string; // YYYY-MM-DD
+  price: number;
+  notes: string;
+  designerId?: string;
+  packageId?: string;
+  acknowledgeAllergyConflict: boolean;
 }
 
 interface AddTreatmentSheetProps {
   lang: Lang;
   open: boolean;
+  today: string;
   customers: Customer[];
-  defaultCustomerName?: string;
-  defaultService?: string;
-  defaultAmount?: number;
-  defaultNote?: string;
-  treatments: Treatment[];
+  catalog: ServiceItem[];
+  designers: Account[];
+  defaultCustomerId?: string;
+  defaultDesignerId?: string;
+  /** 該客戶可扣堂的套票（未過期、有剩餘、涵蓋此品項） */
+  usablePackages: (customerId: string, catalogItemId: string) => ServicePackage[];
+  /** 品項成分與客戶過敏紀錄的衝突清單（由完整資料計算，與畫面遮罩無關） */
+  findConflicts: (customerId: string, catalogItemId: string) => string[];
+  /** 目前帳號是否可看這位客戶的敏感資料；不可時衝突提示不列出成分 */
+  canSeeSensitive: (customerId: string) => boolean;
   onClose: () => void;
-  onSave: (record: VisitRecord) => void;
+  onSave: (values: VisitFormValues) => void;
 }
 
-const SERVICE_OPTIONS: Array<{ zh: string; en: string }> = [
-  { zh: '凝膠美甲', en: 'Gel manicure' },
-  { zh: '美睫嫁接', en: 'Eyelash refill' },
-  { zh: '深層護膚', en: 'Deep facial' },
-  { zh: '剪髮護理', en: 'Hair care' },
-  { zh: '染髮補色', en: 'Colour refresh' },
-  { zh: '保濕導入', en: 'Hydration treatment' },
-];
-
-function isVisitFormPayload(value: unknown): value is VisitFormPayload {
-  if (!value || typeof value !== 'object') return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.clientName === 'string' &&
-    typeof v.service === 'string' &&
-    typeof v.date === 'string' &&
-    typeof v.amount === 'number' &&
-    typeof v.note === 'string' &&
-    typeof v.consent === 'boolean'
-  );
-}
-
-export function isVisitFormPayloadInput(value: unknown): value is VisitFormPayload {
-  return isVisitFormPayload(value);
-}
-
+/**
+ * 新增服務紀錄（FR-002／FR-010）。
+ * 由服務品項帶入金額與時長；儲存後寫入療程資料並重算回訪日。
+ * 品項成分與客戶過敏紀錄衝突時，必須勾選確認才可儲存。
+ */
 export default function AddTreatmentSheet({
   lang,
   open,
+  today,
   customers,
-  defaultCustomerName,
-  defaultService,
-  defaultAmount,
-  defaultNote,
-  treatments,
+  catalog,
+  designers,
+  defaultCustomerId,
+  defaultDesignerId,
+  usablePackages,
+  findConflicts,
+  canSeeSensitive,
   onClose,
   onSave,
 }: AddTreatmentSheetProps) {
-  const today = new Date();
-  const isoToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-
-  const [clientName, setClientName] = useState(defaultCustomerName ?? customers[0]?.name ?? '');
-  const [service, setService] = useState(defaultService ?? SERVICE_OPTIONS[0]!.zh);
-  const [date, setDate] = useState(isoToday);
-  const [amount, setAmount] = useState(defaultAmount ?? 1500);
-  const [note, setNote] = useState(defaultNote ?? '');
+  const firstItem = catalog[0];
+  const [customerId, setCustomerId] = useState(defaultCustomerId ?? customers[0]?.id ?? '');
+  const [catalogItemId, setCatalogItemId] = useState(firstItem?.id ?? '');
+  const [date, setDate] = useState(today);
+  const [price, setPrice] = useState(firstItem?.price ?? 0);
+  const [notes, setNotes] = useState('');
+  const [designerId, setDesignerId] = useState(defaultDesignerId ?? '');
+  const [usePackage, setUsePackage] = useState(false);
   const [consent, setConsent] = useState(true);
+  const [ack, setAck] = useState(false);
 
-  // Reset form on open (UI-SPEC §4.1 — must not wipe data on close → reopen)
+  // 每次開啟時重設表單
   useEffect(() => {
-    if (open) {
-      setClientName(defaultCustomerName ?? customers[0]?.name ?? '');
-      setService(defaultService ?? SERVICE_OPTIONS[0]!.zh);
-      setDate(isoToday);
-      setAmount(defaultAmount ?? 1500);
-      setNote(defaultNote ?? '');
-      setConsent(true);
-    }
+    if (!open) return;
+    const initialCustomer =
+      defaultCustomerId && customers.some((c) => c.id === defaultCustomerId) ? defaultCustomerId : customers[0]?.id ?? '';
+    setCustomerId(initialCustomer);
+    setCatalogItemId(catalog[0]?.id ?? '');
+    setDate(today);
+    setPrice(catalog[0]?.price ?? 0);
+    setNotes('');
+    setDesignerId(defaultDesignerId ?? '');
+    setUsePackage(false);
+    setConsent(true);
+    setAck(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Escape closes
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -100,19 +95,30 @@ export default function AddTreatmentSheet({
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  const matchedCustomer = customers.find((c) => c.name === clientName);
-  const ingredientsForService: string[] = [];
-  // Compose allergy conflict by reusing hasAllergyConflict with the typed service names
-  if (matchedCustomer) {
-    const conflictList = hasAllergyConflict(matchedCustomer, ingredientsForService);
-    void conflictList;
-  }
-  void treatments;
+  const conflicts = useMemo(
+    () => (customerId && catalogItemId ? findConflicts(customerId, catalogItemId) : []),
+    [customerId, catalogItemId, findConflicts],
+  );
+  const packages = useMemo(
+    () => (customerId && catalogItemId ? usablePackages(customerId, catalogItemId) : []),
+    [customerId, catalogItemId, usablePackages],
+  );
+  const pkg = packages[0];
 
   if (!open) return null;
 
-  const amountValid = Number.isFinite(amount) && amount >= 0;
-  const canSave = clientName.trim().length > 0 && service.trim().length > 0 && amountValid && consent;
+  const hasConflict = conflicts.length > 0;
+  const priceValid = Number.isFinite(price) && price >= 0;
+  const canSave =
+    Boolean(customerId) && Boolean(catalogItemId) && Boolean(date) && priceValid && consent && (!hasConflict || ack);
+
+  const selectItem = (id: string) => {
+    setCatalogItemId(id);
+    const item = catalog.find((i) => i.id === id);
+    if (item) setPrice(item.price);
+    setUsePackage(false);
+    setAck(false);
+  };
 
   return (
     <div
@@ -125,129 +131,172 @@ export default function AddTreatmentSheet({
       <section className="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
         <div className="drawer-head">
           <div>
-            <h2 id="drawer-title" data-i18n="drawerTitle">{t(lang, 'drawerTitle')}</h2>
-            <p data-i18n="drawerSubtitle">{t(lang, 'drawerSubtitle')}</p>
+            <h2 id="drawer-title">{t(lang, 'drawerTitle')}</h2>
+            <p>{t(lang, 'drawerSubtitle')}</p>
           </div>
-          <button type="button" className="close" aria-label="Close" onClick={onClose}>
+          <button type="button" className="close" aria-label={t(lang, 'closeAction')} onClick={onClose}>
             ×
           </button>
         </div>
 
-        <form
-          className="form"
-          id="visit-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canSave) return;
-            const record: VisitRecord = {
-              clientName: clientName.trim(),
-              service: service.trim(),
-              date,
-              amount: Math.round(amount),
-              note: note.trim(),
-              consent,
-              savedAt: new Date().toISOString(),
-            };
-            onSave(record);
-          }}
-        >
-          <div className="field">
-            <label htmlFor="customer">{t(lang, 'client').toUpperCase()}</label>
-            <input
-              id="customer"
-              list="customer-options"
-              value={clientName}
-              onChange={(event) => setClientName(event.target.value)}
-              required
-              autoComplete="off"
-            />
-            <datalist id="customer-options">
-              {customers.map((c) => (
-                <option key={c.id} value={c.name} />
-              ))}
-            </datalist>
-          </div>
-
-          <div className="form-grid">
+        {customers.length === 0 ? (
+          <p className="memory-empty" style={{ marginTop: 20 }}>{t(lang, 'visitNoCustomers')}</p>
+        ) : (
+          <form
+            className="form"
+            id="visit-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canSave) return;
+              onSave({
+                customerId,
+                catalogItemId,
+                date,
+                price: Math.round(usePackage && pkg ? 0 : price),
+                notes: notes.trim(),
+                designerId: designerId || undefined,
+                packageId: usePackage && pkg ? pkg.id : undefined,
+                acknowledgeAllergyConflict: ack,
+              });
+            }}
+          >
             <div className="field">
-              <label htmlFor="date">{t(lang, 'date').toUpperCase()}</label>
-              <input
-                id="date"
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
+              <label htmlFor="visit-customer">{t(lang, 'visitCustomer')}</label>
+              <select
+                id="visit-customer"
+                value={customerId}
+                onChange={(event) => {
+                  setCustomerId(event.target.value);
+                  setUsePackage(false);
+                  setAck(false);
+                }}
                 required
+              >
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="visit-service">{t(lang, 'visitService')}</label>
+              <select id="visit-service" value={catalogItemId} onChange={(event) => selectItem(event.target.value)} required>
+                {catalog.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}（{item.durationMin} {t(lang, 'minutesUnit')}）
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-grid">
+              <div className="field">
+                <label htmlFor="visit-date">{t(lang, 'date')}</label>
+                <input
+                  id="visit-date"
+                  type="date"
+                  value={date}
+                  max={today}
+                  onChange={(event) => setDate(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="visit-amount">{t(lang, 'amount')}</label>
+                <input
+                  id="visit-amount"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={100}
+                  value={usePackage && pkg ? 0 : price}
+                  disabled={usePackage && Boolean(pkg)}
+                  onChange={(event) => setPrice(Number(event.target.value))}
+                  required
+                />
+              </div>
+            </div>
+
+            {designers.length > 0 ? (
+              <div className="field">
+                <label htmlFor="visit-designer">{t(lang, 'visitDesigner')}</label>
+                <select id="visit-designer" value={designerId} onChange={(event) => setDesignerId(event.target.value)}>
+                  <option value="">{t(lang, 'fieldOwnerDesigner')}</option>
+                  {designers.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
+            {pkg ? (
+              <label className="consent" data-testid="visit-use-package-row">
+                <input
+                  type="checkbox"
+                  data-testid="visit-use-package"
+                  checked={usePackage}
+                  onChange={(event) => setUsePackage(event.target.checked)}
+                />
+                <span>{tf(lang, 'visitUsePackage', { name: pkg.name, n: remainingSessions(pkg) })}</span>
+              </label>
+            ) : null}
+
+            <div className="field">
+              <label htmlFor="visit-note">{t(lang, 'note')}</label>
+              <textarea
+                id="visit-note"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder={t(lang, 'visitNotePlaceholder')}
               />
             </div>
-            <div className="field">
-              <label htmlFor="amount">{t(lang, 'amount').toUpperCase()}</label>
+
+            {hasConflict ? (
+              <div className="confirm-box" role="alert" data-testid="allergy-conflict">
+                <p>
+                  <strong>{t(lang, 'visitConflictTitle')}</strong>
+                  <br />
+                  {canSeeSensitive(customerId)
+                    ? tf(lang, 'visitConflictBody', { items: conflicts.join('、') })
+                    : t(lang, 'allergenConflict')}
+                </p>
+                <label className="consent">
+                  <input
+                    type="checkbox"
+                    data-testid="allergy-ack"
+                    checked={ack}
+                    onChange={(event) => setAck(event.target.checked)}
+                  />
+                  <span>{t(lang, 'visitConflictAck')}</span>
+                </label>
+              </div>
+            ) : null}
+
+            <label className="consent">
               <input
-                id="amount"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={100}
-                value={amount}
-                onChange={(event) => setAmount(Number(event.target.value))}
+                type="checkbox"
+                id="visit-consent"
+                checked={consent}
+                onChange={(event) => setConsent(event.target.checked)}
                 required
               />
+              <span>{t(lang, 'consent')}</span>
+            </label>
+
+            <div className="drawer-foot">
+              <button type="button" className="button secondary" onClick={onClose}>
+                {t(lang, 'cancel')}
+              </button>
+              <button type="submit" className="button primary" data-testid="save-visit" disabled={!canSave}>
+                {t(lang, 'saveVisit')}
+              </button>
             </div>
-          </div>
-
-          <div className="field">
-            <label htmlFor="service">{t(lang, 'service').toUpperCase()}</label>
-            <select
-              id="service"
-              value={service}
-              onChange={(event) => setService(event.target.value)}
-            >
-              {SERVICE_OPTIONS.map((opt) => (
-                <option key={opt.zh} value={lang === 'zh' ? opt.zh : opt.en}>
-                  {lang === 'zh' ? opt.zh : opt.en}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label htmlFor="note">{t(lang, 'note').toUpperCase()}</label>
-            <textarea
-              id="note"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={lang === 'zh' ? '客戶偏好、過敏、聯絡重點…' : 'Preferences, allergies, contact notes…'}
-            />
-          </div>
-
-          <label className="consent">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) => setConsent(event.target.checked)}
-              required
-            />
-            <span>{t(lang, 'consent')}</span>
-          </label>
-
-          <div className="drawer-foot">
-            <button
-              type="button"
-              className="button secondary"
-              onClick={onClose}
-              data-i18n="cancel"
-            >
-              {t(lang, 'cancel')}
-            </button>
-            <button
-              type="submit"
-              className="button primary"
-              data-i18n="saveVisit"
-              disabled={!canSave}
-            >
-              {t(lang, 'saveVisit')}
-            </button>
-          </div>
-        </form>
+          </form>
+        )}
       </section>
     </div>
   );

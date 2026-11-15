@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.3.0 — 2026-11-16（M1，分支 `feat/m1`）
+
+依 `GOAL.md` M1 與 `PRD/SPEC.md` v4.0。
+
+### Added
+- concierge 資料模型與邏輯：套票、預約、Before/After 效果與膚況改善、顧問（設計師檔案）、服務品項目錄、月曆格（AC-001）
+- 資料寫入 store、localStorage 持久化、回訪天數設定、由資料計算的 KPI 與回流漏斗（AC-002、AC-003）
+- LINE 回訪提醒 dry-run adapter（AC-004）
+- 多店與帳號權限矩陣、示範帳號切換（AC-005）
+- 敏感個資同意、同意紀錄、遮罩、刪除客戶、清除本機資料、匯出個資警告（AC-006）
+- 假資料掃描測試（AC-007）；Playwright E2E、typecheck script（AC-008）
+
+### Changed
+- 所有 seed、測試、原型改為明顯假資料
+- `next` 固定為 16.2.10；移除 pnpm lockfile；移除 `output: 'standalone'`
+- CI 不再吞錯，新增 typecheck、e2e；production 部署改為手動觸發
+
+### Removed
+- 未被引用的 `src/components/workbench/*`（舊 seed 移到 `tests/fixtures/`）、`WorkspaceSwitcher.tsx`
+
 ## v0.2.0 — 2026-07-19 (production-ready push)
 
 對應 commits `d782c95` ~ `rpb-2-devops`（見 git log）。

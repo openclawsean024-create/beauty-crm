@@ -9,8 +9,8 @@ describe('export — JSON structure is local-only', () => {
   it('serializes a payload without remote URLs', () => {
     const customer = createCustomer({
       id: 'c1',
-      name: '陳美玲',
-      phone: '0933312318',
+      name: '測試客戶 A',
+      phone: '0900000001',
       consent: 'granted',
     });
     const treatment = recordTreatment({
@@ -23,7 +23,7 @@ describe('export — JSON structure is local-only', () => {
       performedAt: '2026-09-01T10:00:00Z',
     });
     const lastVisit = makeVisitRecord({
-      clientName: '陳美玲',
+      clientName: '測試客戶 A',
       service: 'Gel manicure',
       date: '2026-09-24',
       amount: 1500,
@@ -33,7 +33,7 @@ describe('export — JSON structure is local-only', () => {
     const payload = buildExportPayload([customer], [treatment], { lastVisit, visitLog: [lastVisit] }, 'Atelier M');
     const json = serializeExport(payload);
     expect(json).toContain('Atelier M');
-    expect(json).toContain('陳美玲');
+    expect(json).toContain('測試客戶 A');
     // No http or https endpoints are introduced
     expect(json).not.toMatch(/https?:\/\//);
     // Verify it is valid JSON

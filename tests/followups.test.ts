@@ -16,7 +16,7 @@ import {
 const baseDraft = (overrides: Partial<FollowupDraft> = {}): FollowupDraft => ({
   customerId: 'c1',
   status: 'draft',
-  body: '嗨,雅婷!...',
+  body: '嗨,測試客戶!...',
   updatedAt: '2026-09-21T00:00:00Z',
   ...overrides,
 });

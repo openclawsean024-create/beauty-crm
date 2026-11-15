@@ -1,19 +1,18 @@
-// Beauty CRM — shared dashboard types (v3 Retention Desk)
+// Beauty CRM — shared dashboard types
+
+import type { MessageKey } from '@/lib/i18n';
 
 export type Tab = 'today' | 'clients' | 'retention' | 'insights' | 'settings';
 
-export const TAB_LABELS: Record<Tab, string> = {
-  today: '今日工作台',
-  clients: '客戶',
-  retention: '回訪',
-  insights: '洞察',
-  settings: '設定與資料',
-};
+export const TABS: Array<{ id: Tab; labelKey: MessageKey; icon: string }> = [
+  { id: 'today', labelKey: 'navToday', icon: '⌂' },
+  { id: 'clients', labelKey: 'navClients', icon: '○' },
+  { id: 'retention', labelKey: 'navRetention', icon: '◷' },
+  { id: 'insights', labelKey: 'navInsights', icon: '↗' },
+  { id: 'settings', labelKey: 'navSettings', icon: '⚙' },
+];
 
-/** v3 queue filter values (UI-SPEC v1.1 §3.2 + prototype §tools) */
+/** queue filter values */
 export type QueueFilter = 'all' | 'overdue' | 'soon' | 'vip';
 
 export const QUEUE_FILTERS: QueueFilter[] = ['all', 'overdue', 'soon', 'vip'];
-
-/** Recall row status derived from Reminder.status */
-export type QueueStatus = 'overdue' | 'soon' | 'ok';

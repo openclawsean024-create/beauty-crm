@@ -2,7 +2,7 @@
 // 計算每位客戶的下次回訪日 + 過期提醒清單。
 
 import type { Customer } from './customers';
-import type { Treatment } from './treatments';
+import type { Treatment, TreatmentCategory } from './treatments';
 import { lastTreatment, suggestRecallDays } from './treatments';
 
 export interface Reminder {
@@ -31,6 +31,7 @@ export function computeReminder(
   treatments: Treatment[],
   today: Date = new Date(),
   dueSoonDays: number = 7,
+  recallSettings?: Partial<Record<TreatmentCategory, number>>,
 ): Reminder {
   const last = lastTreatment(treatments, customer.id);
   if (!last) {
@@ -45,7 +46,8 @@ export function computeReminder(
     };
   }
   const performed = new Date(last.performedAt);
-  const recallDays = suggestRecallDays(last.category);
+  // 店家可調整各類回訪天數（FR-003）；沒有設定時用預設值。
+  const recallDays = recallSettings?.[last.category] ?? suggestRecallDays(last.category);
   const recallDate = new Date(performed.getTime() + recallDays * MS_PER_DAY);
   const daysUntil = Math.round(
     (recallDate.getTime() - today.getTime()) / MS_PER_DAY,

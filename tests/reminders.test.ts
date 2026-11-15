@@ -6,7 +6,7 @@ import { recordTreatment } from '@/lib/treatments';
 const today = new Date('2026-07-19T00:00:00Z');
 
 function mkCustomer(id: string) {
-  return createCustomer({ id, name: `C${id}`, phone: '0912345678' });
+  return createCustomer({ id, name: `測試客戶${id}`, phone: '0900000001' });
 }
 
 describe('reminders — 回訪提醒', () => {

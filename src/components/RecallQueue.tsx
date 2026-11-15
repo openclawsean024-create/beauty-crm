@@ -1,66 +1,36 @@
 'use client';
 
-import type { Customer } from '@/lib/customers';
-import type { Treatment } from '@/lib/treatments';
-import { t, type Lang } from '@/lib/i18n';
-import {
-  QUEUE_FILTERS,
-  type QueueFilter,
-  type Tab,
-} from './dashboard-types';
-
-export interface RecallRow {
-  customer: Customer;
-  lastServiceDate?: string;
-  lastServiceName?: string;
-  amount: number;
-  daysUntilRecall: number; // negative = overdue
-  status: 'overdue' | 'soon';
-  isVip: boolean;
-}
+import { t, tf, type Lang } from '@/lib/i18n';
+import type { RecallQueueRow } from '@/lib/recall-queue';
+import { QUEUE_FILTERS, type QueueFilter } from './dashboard-types';
 
 interface RecallQueueProps {
   lang: Lang;
-  rows: RecallRow[];
+  rows: RecallQueueRow[];
   selectedCustomerId: string | null;
   filter: QueueFilter;
   query: string;
   onFilterChange: (filter: QueueFilter) => void;
   onQueryChange: (query: string) => void;
   onSelect: (customerId: string) => void;
-  totalCount: number;
-  onExport: () => void;
+  onExport?: () => void; // 沒有匯出權限時不傳，按鈕就不顯示
   onShowAll: () => void;
-}
-
-function statusForRow(row: RecallRow): {
-  label: string;
-  tone: 'overdue' | 'soon' | 'ok';
-} {
-  if (row.daysUntilRecall < 0) {
-    return { label: 'overdue', tone: 'overdue' };
-  }
-  return { label: 'soon', tone: 'soon' };
 }
 
 function initialOf(name: string): string {
   const trimmed = name.trim();
-  return trimmed[0] ? trimmed[0].toUpperCase() : '?';
+  return trimmed ? trimmed.slice(-1).toUpperCase() : '?';
 }
 
-function formatServiceDate(iso?: string): string {
-  if (!iso) return '—';
-  return iso.slice(5).replace('-', '/');
+function formatServiceDate(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function formatDays(daysUntilRecall: number): string {
-  if (daysUntilRecall < 0) return `${Math.abs(daysUntilRecall)} days overdue`;
-  if (daysUntilRecall === 0) return 'today';
-  return `in ${daysUntilRecall} days`;
-}
-
-function formatAmount(amount: number): string {
-  return `NT$ ${amount.toLocaleString()}`;
+export function formatRecallDays(lang: Lang, daysUntilRecall: number): string {
+  if (daysUntilRecall < 0) return tf(lang, 'daysOverdue', { n: Math.abs(daysUntilRecall) });
+  if (daysUntilRecall === 0) return t(lang, 'dueToday');
+  return tf(lang, 'dueInDays', { n: daysUntilRecall });
 }
 
 const FILTER_LABEL: Record<QueueFilter, 'filterAll' | 'filterOverdue' | 'filterSoon' | 'filterVip'> = {
@@ -79,39 +49,40 @@ export default function RecallQueue({
   onFilterChange,
   onQueryChange,
   onSelect,
-  totalCount,
   onExport,
   onShowAll,
 }: RecallQueueProps) {
-  const filtered = filter === 'all' ? rows : rows.filter((r) => {
+  const filtered = rows.filter((r) => {
     if (filter === 'overdue') return r.daysUntilRecall < 0;
     if (filter === 'soon') return r.daysUntilRecall >= 0;
     if (filter === 'vip') return r.isVip;
     return true;
   });
-  const searched = !query.trim()
+  const q = query.trim().toLowerCase();
+  const searched = !q
     ? filtered
-    : filtered.filter((r) => {
-        const q = query.toLowerCase();
-        return (
+    : filtered.filter(
+        (r) =>
           r.customer.name.toLowerCase().includes(q) ||
-          (r.lastServiceName ?? '').toLowerCase().includes(q)
-        );
-      });
+          r.customer.phone.includes(q) ||
+          r.lastServiceName.toLowerCase().includes(q),
+      );
 
   return (
-    <article className="card">
+    <article className="card" data-testid="recall-queue">
       <div className="card-header">
         <div>
           <h2 className="card-title">{t(lang, 'queueTitle')}</h2>
           <p className="card-subtitle">{t(lang, 'queueSubtitle')}</p>
         </div>
-        <button type="button" className="quiet" onClick={onExport}>
-          {t(lang, 'export')}
-        </button>
+        {onExport ? (
+          <button type="button" className="quiet" onClick={onExport} data-testid="export-data">
+            {t(lang, 'export')}
+          </button>
+        ) : null}
       </div>
       <div className="queue-tools">
-        <label className="queue-search" aria-label="Search queue">
+        <label className="queue-search" aria-label={t(lang, 'queueSearchPlaceholder')}>
           <span aria-hidden="true">⌕</span>
           <input
             id="queue-search"
@@ -121,13 +92,12 @@ export default function RecallQueue({
             placeholder={t(lang, 'queueSearchPlaceholder')}
           />
         </label>
-        <div className="segmented" role="tablist" aria-label={t(lang, 'queueTitle')}>
+        <div className="segmented" role="group" aria-label={t(lang, 'queueTitle')}>
           {QUEUE_FILTERS.map((option) => (
             <button
               key={option}
               type="button"
-              role="tab"
-              aria-selected={filter === option}
+              aria-pressed={filter === option}
               className={filter === option ? 'active' : ''}
               data-filter={option}
               onClick={() => onFilterChange(option)}
@@ -138,13 +108,8 @@ export default function RecallQueue({
         </div>
       </div>
       <div className="queue">
-        {searched.length === 0 ? (
-          <p style={{ padding: 20, color: 'var(--muted)', textAlign: 'center', fontSize: 12 }}>
-            {lang === 'zh' ? '目前沒有符合條件的客戶' : 'No clients match the current filters'}
-          </p>
-        ) : null}
+        {searched.length === 0 ? <p className="empty-note">{t(lang, 'queueEmpty')}</p> : null}
         {searched.map((row) => {
-          const status = statusForRow(row);
           const isSelected = row.customer.id === selectedCustomerId;
           return (
             <button
@@ -152,7 +117,9 @@ export default function RecallQueue({
               type="button"
               className={`queue-row${isSelected ? ' selected' : ''}`}
               aria-pressed={isSelected}
-              data-status={status.tone}
+              data-testid="queue-row"
+              data-customer-id={row.customer.id}
+              data-status={row.status}
               data-vip={row.isVip ? 'true' : 'false'}
               onClick={() => onSelect(row.customer.id)}
             >
@@ -162,26 +129,35 @@ export default function RecallQueue({
                   <span className="person-name">{row.customer.name}</span>
                   <br />
                   <span className="person-meta mono">
-                    {formatServiceDate(row.lastServiceDate)} · {row.lastServiceName ?? t(lang, 'noFindings')}
+                    {formatServiceDate(row.lastServiceDate)} · {row.lastServiceName}
                   </span>
                 </span>
               </div>
               <span className="cell-stack">
-                <span className="cell-label">Return window</span>
-                <span className="cell-value mono">{formatDays(row.daysUntilRecall)}</span>
+                <span className="cell-label">{t(lang, 'colReturnWindow')}</span>
+                <span className="cell-value mono">{formatRecallDays(lang, row.daysUntilRecall)}</span>
               </span>
               <span className="cell-stack">
-                <span className="cell-label">Last visit</span>
-                <span className="cell-value mono">{formatAmount(row.amount)}</span>
+                <span className="cell-label">{t(lang, 'colLastVisit')}</span>
+                <span className="cell-value mono">NT$ {row.amount.toLocaleString('en-US')}</span>
               </span>
-              <span className={`status ${status.tone}`}>{status.label}</span>
+              <span className="status-stack">
+                <span className={`status ${row.status}`}>
+                  {row.status === 'overdue' ? t(lang, 'statusOverdue') : t(lang, 'statusSoon')}
+                </span>
+                {row.booked ? (
+                  <span className="status ok" data-badge="booked">{t(lang, 'badgeBooked')}</span>
+                ) : row.contacted ? (
+                  <span className="status ok" data-badge="contacted">{t(lang, 'badgeContacted')}</span>
+                ) : null}
+              </span>
             </button>
           );
         })}
       </div>
       <div className="queue-footer">
         <span>
-          {t(lang, 'showingOf')} {searched.length} / {totalCount}
+          {t(lang, 'showingOf')} {searched.length} / {rows.length}
         </span>
         <button type="button" className="quiet" onClick={onShowAll}>
           {t(lang, 'showAll')} →
@@ -190,5 +166,3 @@ export default function RecallQueue({
     </article>
   );
 }
-
-export const _internalTab: Tab = 'today';

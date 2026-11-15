@@ -11,7 +11,7 @@ const today = new Date('2026-07-19T00:00:00Z');
 
 describe('integration — 客戶終身旅程', () => {
   it('AC: 新客 → 3 次療程 → 升 silver → 收到回訪推播', () => {
-    const c = createCustomer({ id: 'c1', name: '雅婷', phone: '0912345678', consent: 'granted' });
+    const c = createCustomer({ id: 'c1', name: '測試客戶A', phone: '0900000001', consent: 'granted' });
 
     // 3 次療程累計 6,000 → silver
     const txs = [
@@ -44,7 +44,7 @@ describe('integration — 客戶終身旅程', () => {
     // 同意狀態 → 推播
     const targets = buildBroadcast('recall_due', [c], txs);
     expect(targets).toHaveLength(1);
-    expect(targets[0]!.preview).toContain('雅婷');
+    expect(targets[0]!.preview).toContain('測試客戶A');
 
     // 撤回同意 → 推播清空
     const revoked = toggleConsent(c);
@@ -53,7 +53,7 @@ describe('integration — 客戶終身旅程', () => {
   });
 
   it('AC: 高消費客戶自動 gold + 收到 vip_upgrade 推播', () => {
-    const c = createCustomer({ id: 'vip', name: 'Lisa', phone: '0912345678', consent: 'granted' });
+    const c = createCustomer({ id: 'vip', name: '測試客戶VIP', phone: '0900000001', consent: 'granted' });
     const txs = [
       recordTreatment({ id: 'a', customerId: 'vip', category: 'skincare', serviceName: '頂級臉護', price: 12000, durationMin: 120, performedAt: '2026-02-01T10:00:00Z' }),
       recordTreatment({ id: 'b', customerId: 'vip', category: 'skincare', serviceName: '頂級臉護', price: 12000, durationMin: 120, performedAt: '2026-04-01T10:00:00Z' }),
@@ -64,12 +64,12 @@ describe('integration — 客戶終身旅程', () => {
 
     const targets = buildBroadcast('vip_upgrade', [c], txs);
     expect(targets).toHaveLength(1);
-    expect(targets[0]!.preview).toContain('Lisa');
+    expect(targets[0]!.preview).toContain('測試客戶VIP');
   });
 
   it('AC: 大量客戶批次效能', () => {
     const customers = Array.from({ length: 100 }, (_, i) =>
-      createCustomer({ id: `c${i}`, name: `客戶${i}`, phone: '0912345678', consent: 'granted' }),
+      createCustomer({ id: `c${i}`, name: `測試客戶${i}`, phone: '0900000001', consent: 'granted' }),
     );
     const treatments = customers.flatMap((c, i) => [
       recordTreatment({ id: `${c.id}-a`, customerId: c.id, category: 'manicure', serviceName: 'A', price: 1000 * (i + 1), durationMin: 60, performedAt: '2026-05-01T10:00:00Z' }),

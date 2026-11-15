@@ -1,6 +1,9 @@
-// Beauty CRM — workbench seed + types
-// 對齊 beauty-crm-redesign.html (Sean-approved prototype)。
-// 不修改 src/lib/* domain logic,只在 UI 層補上展示所需的標籤/備註。
+// Beauty CRM — 舊版 workbench seed（測試用 fixture）
+//
+// @deprecated 原本位於 src/components/workbench/seed.ts，屬於未被任何頁面引用的
+// 第二套工作台。M1（GOAL AC-002）只保留 Dashboard 這一套 UI 入口，workbench 元件已移除；
+// 這份 seed 只剩 tests/workbench-seed.test.ts 使用，因此搬到 tests/fixtures。
+// App 的示範資料請看 src/lib/seed.ts。
 
 import type { Customer, ConsentStatus } from '@/lib/customers';
 import type { Treatment, TreatmentCategory } from '@/lib/treatments';
@@ -30,55 +33,55 @@ const ISO_CREATE = '2026-01-01T00:00:00Z';
 const SEED_CUSTOMERS: DisplayCustomer[] = [
   {
     id: 'c1',
-    name: '雅婷',
-    phone: '0911111111',
+    name: '示範客戶 A',
+    phone: '0900000001',
     consent: 'granted' as ConsentStatus,
     allergies: ['HEMA'],
-    preferences: ['裸色系偏好', '指定設計師 Amy'],
+    preferences: ['裸色系偏好', '指定示範設計師'],
     tags: ['VIP'],
     createdAt: ISO_CREATE,
     updatedAt: ISO_NOW,
-    displayName: '林雅婷',
-    initials: '雅',
+    displayName: '示範客戶 A',
+    initials: 'A',
   },
   {
     id: 'c2',
-    name: '小美',
-    phone: '0922222222',
+    name: '示範客戶 B',
+    phone: '0900000002',
     consent: 'granted' as ConsentStatus,
     allergies: [],
     preferences: ['自然款'],
     tags: [],
     createdAt: ISO_CREATE,
     updatedAt: ISO_NOW,
-    displayName: '陳小美',
-    initials: '美',
+    displayName: '示範客戶 B',
+    initials: 'B',
   },
   {
     id: 'c3',
-    name: 'Lisa',
-    phone: '0933333333',
+    name: '示範客戶 C',
+    phone: '0900000003',
     consent: 'pending' as ConsentStatus,
     allergies: ['AHA'],
     preferences: ['敏感肌'],
     tags: [],
     createdAt: ISO_CREATE,
     updatedAt: ISO_NOW,
-    displayName: 'Lisa',
-    initials: 'L',
+    displayName: '示範客戶 C',
+    initials: 'C',
   },
   {
     id: 'c4',
-    name: 'Amy',
-    phone: '0944444444',
+    name: '示範客戶 D',
+    phone: '0900000004',
     consent: 'revoked' as ConsentStatus,
     allergies: [],
     preferences: ['短髮'],
     tags: [],
     createdAt: ISO_CREATE,
     updatedAt: ISO_NOW,
-    displayName: 'Amy',
-    initials: 'A',
+    displayName: '示範客戶 D',
+    initials: 'D',
   },
 ];
 
@@ -99,7 +102,7 @@ const SEED_TREATMENTS: DisplayTreatment[] = [
     durationMin: 90,
     performedAt: '2026-08-18T10:00:00Z',
     displayName: '凝膠美甲 + 設計',
-    preferenceTags: ['裸色系偏好', '指定設計師 Amy'],
+    preferenceTags: ['裸色系偏好', '指定示範設計師'],
     noteSummary: '上次想把方圓甲改短一點。喜歡低調、耐看,不要太亮的珠光。',
     allergyDescription: '對甲油膠中的 HEMA 成分敏感',
     vipReason: '累計 NT$ 24,800,距離黑卡還差 NT$ 35,200',
