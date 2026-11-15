@@ -1,16 +1,23 @@
 name: CI
 
+# 品質閘門（GOAL AC-008）：lint、typecheck、test、build、e2e 任一失敗即失敗。
+# Production 部署不會因 push 自動觸發；只能由 workflow_dispatch 手動勾選後執行，
+# 且必須等全部檢查 job 通過。
+
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
-    branches: [main, master]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_production:
+        description: '部署到 Vercel production（需全部檢查通過）'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -24,11 +31,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - run: npm ci
       - run: npm run lint
-        continue-on-error: true  # 沒 lint script 不擋
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run typecheck
 
   test:
     name: Unit Tests
@@ -37,47 +55,62 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
-      - run: npm test -- --run 2>&1 || echo "no test script"
+      - run: npm ci
+      - run: npm test
 
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - run: npm ci
       - run: npm run build
-      - uses: actions/upload-artifact@v4
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          name: build-output
-          path: dist/
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+        env:
+          CI: 'true'
+          TZ: Asia/Taipei
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
           if-no-files-found: ignore
           retention-days: 7
 
   deploy:
-    name: Deploy to Vercel
+    name: Deploy to Vercel (manual)
     runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    env:
-      DEPLOY_TARGET: vercel
+    needs: [lint, typecheck, test, build, e2e]
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_production && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-      - run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - run: npm ci
       - run: npm run build
       - name: Deploy to Vercel
-        if: env.DEPLOY_TARGET == 'vercel'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}

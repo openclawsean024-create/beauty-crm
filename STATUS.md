@@ -4,7 +4,20 @@
 - 主 repo：`openclawsean024-create/beauty-crm`（`main` @ `8e0d06c`）
 - 待併入：`openclawsean024-create/beauty-crm-concierge`（`main` @ `4921a19`，只讀）
 - 規格：`PRD/SPEC.md` v4.0；目標：`GOAL.md`（M1）
-- 狀態：🟡 **文件重建完成，尚未依 v4.0 開發**（2026-11-16）
+- 狀態：🟡 **M1 開發中**（分支 `feat/m1`，2026-11-16）
+
+## M1 進度（分支 `feat/m1`）
+
+| AC | 內容 | 狀態 | 測試／證據 |
+|---|---|---|---|
+| AC-001 | 併入 concierge 資料模型與邏輯 | ⏳ 未開始 | — |
+| AC-002 | 單一 UI 入口與回流漏斗 | ⏳ 未開始 | — |
+| AC-003 | 新增客戶／服務寫入、KPI 由資料計算 | ⏳ 未開始 | — |
+| AC-004 | LINE 提醒 dry-run adapter | ⏳ 未開始 | — |
+| AC-005 | 多店與帳號權限 | ⏳ 未開始 | — |
+| AC-006 | 敏感個資同意、遮罩、刪除 | ⏳ 未開始 | — |
+| AC-007 | 只用明顯假資料 | ⏳ 未開始 | — |
+| AC-008 | 品質閘門 | 🟡 閘門已建立，e2e spec 隨後續 AC 補上 | `tests/quality-gate.test.ts`（8 tests）；`npm run typecheck` exit 0 |
 
 ## 與 Notion 商品資料庫的對應
 

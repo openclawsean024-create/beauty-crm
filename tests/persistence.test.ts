@@ -151,7 +151,7 @@ describe('persistence — local state round-trip', () => {
 
   it('loadPersistedState tolerates corrupt JSON', () => {
     withLocalStorage(() => {
-      const fake = (globalThis as { localStorage?: MemStorage & {
+      const fake = (globalThis as unknown as { localStorage?: MemStorage & {
         getItem: (key: string) => string | null;
         setItem: (key: string, value: string) => void;
         removeItem: (key: string) => void;
