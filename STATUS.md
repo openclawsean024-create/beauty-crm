@@ -10,7 +10,7 @@
 
 | AC | 內容 | 狀態 | 測試／證據 |
 |---|---|---|---|
-| AC-001 | 併入 concierge 資料模型與邏輯 | ⏳ 未開始 | — |
+| AC-001 | 併入 concierge 資料模型與邏輯 | ✅ 完成 | `src/lib/packages.ts`、`appointments.ts`、`effects.ts`、`accounts.ts`、`service-catalog.ts`、`calendar.ts`、`dates.ts`；`tests/{packages,appointments,effects,service-catalog,accounts,calendar}.test.ts` 共 42 tests 通過；`package.json` 未新增 Tailwind／Framer Motion／lucide；`git grep unsplash -- src` 無結果 |
 | AC-002 | 單一 UI 入口與回流漏斗 | ⏳ 未開始 | — |
 | AC-003 | 新增客戶／服務寫入、KPI 由資料計算 | ⏳ 未開始 | — |
 | AC-004 | LINE 提醒 dry-run adapter | ⏳ 未開始 | — |
