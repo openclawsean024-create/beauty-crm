@@ -55,7 +55,7 @@ export default function Sidebar({ view, onChange, onMobileMenu: _onMobileMenu }:
         <div className="profile">
           <div className="avatar">林</div>
           <div>
-            <div className="profile-name">林心妍</div>
+            <div className="profile-name">示範設計師</div>
             <div className="profile-meta">設計師 · Pro 方案</div>
           </div>
         </div>

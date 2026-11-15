@@ -137,7 +137,7 @@ export default function Workbench() {
       treatments as unknown as Treatment[],
       today,
     ).length;
-    // v1 用 seed 標記:雅婷已聯絡,小美已預約
+    // v1 用 seed 標記:示範客戶 A 已聯絡,示範客戶 B 已預約
     const contacted = queueItems.filter((q) => q.customer.consent === 'granted').length;
     const booked = queueItems.filter((q) => q.customer.id === 'c2').length;
     return { due: Math.max(due, queueItems.length), contacted, booked };
@@ -248,7 +248,7 @@ export default function Workbench() {
         <section className="page-head">
           <div>
             <div className="eyebrow">MONDAY · 21 SEP 2026</div>
-            <h1>早安,林心妍</h1>
+            <h1>早安,示範設計師</h1>
             <p className="page-sub">
               今天有{' '}
               <strong style={{ color: 'var(--brand)' }}>{stats.due} 位客戶</strong>{' '}

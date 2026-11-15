@@ -16,7 +16,7 @@
 | AC-004 | LINE 提醒 dry-run adapter | ⏳ 未開始 | — |
 | AC-005 | 多店與帳號權限 | ⏳ 未開始 | — |
 | AC-006 | 敏感個資同意、遮罩、刪除 | ⏳ 未開始 | — |
-| AC-007 | 只用明顯假資料 | ⏳ 未開始 | — |
+| AC-007 | 只用明顯假資料 | ✅ 完成 | `tests/fixtures-safety.test.ts`（8 tests）通過；seed、測試、根目錄 HTML 原型的姓名改為「示範／測試」前綴，手機改為 `09000000xx`；secret 掃描無結果 |
 | AC-008 | 品質閘門 | 🟡 閘門已建立，e2e spec 隨後續 AC 補上 | `tests/quality-gate.test.ts`（8 tests）；`npm run typecheck` exit 0 |
 
 ## 與 Notion 商品資料庫的對應

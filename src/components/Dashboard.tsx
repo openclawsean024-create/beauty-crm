@@ -36,8 +36,8 @@ import {
 const SEED_CUSTOMERS: Customer[] = [
   createCustomer({
     id: 'c1',
-    name: '陳美玲',
-    phone: '0933312318',
+    name: '示範客戶 A',
+    phone: '0900000001',
     consent: 'granted',
     tags: ['18 visits', 'Natural brown', 'No mornings'],
     preferences: ['Natural brown', 'Fragrance-free formula'],
@@ -46,8 +46,8 @@ const SEED_CUSTOMERS: Customer[] = [
   }),
   createCustomer({
     id: 'c2',
-    name: '林瑜安',
-    phone: '0945623702',
+    name: '示範客戶 B',
+    phone: '0900000002',
     consent: 'granted',
     tags: ['7 visits', 'Low irritation', 'Weekends'],
     preferences: ['Low-irritation products'],
@@ -56,8 +56,8 @@ const SEED_CUSTOMERS: Customer[] = [
   }),
   createCustomer({
     id: 'c3',
-    name: '許雅婷',
-    phone: '0958743146',
+    name: '示範客戶 C',
+    phone: '0900000003',
     consent: 'granted',
     tags: ['12 visits', 'Natural lash', 'Lightweight'],
     preferences: ['Natural lash, lightweight'],
@@ -65,8 +65,8 @@ const SEED_CUSTOMERS: Customer[] = [
   }),
   createCustomer({
     id: 'c4',
-    name: '周佳蓉',
-    phone: '0912045559',
+    name: '示範客戶 D',
+    phone: '0900000004',
     consent: 'pending',
     tags: ['2 visits', 'Hydration', 'Evenings'],
     preferences: ['Hydration, evenings'],
@@ -74,8 +74,8 @@ const SEED_CUSTOMERS: Customer[] = [
   }),
   createCustomer({
     id: 'c5',
-    name: '張婉雯',
-    phone: '0952327931',
+    name: '示範客戶 E',
+    phone: '0900000005',
     consent: 'granted',
     tags: ['22 visits', 'Colour refresh', 'Low fragrance'],
     preferences: ['Colour refresh, low fragrance'],
@@ -146,16 +146,16 @@ const SEED_TREATMENTS: Treatment[] = [
   }),
 ];
 
-const DESIGNER = { name: '林心妍', initial: '林' };
+const DESIGNER = { name: '示範設計師', initial: '示' };
 
 // Per-client draft body + tier + care note (v3 prototype data, kept as seed
 // so the UI has context without running off the domain libs).
 const SEED_DRAFT_BODIES: Record<string, string> = {
-  c1: '美玲午安！想起你上次做的自然棕護髮，這週剛好進入適合整理的時間了。最近頭髮狀況還好嗎？如果你想回來，我可以幫你留 10 月平日下午的時段。',
-  c2: '瑜安午安！最近換季肌膚還適應嗎？上次深層清潔後差不多進入保養週期，如果你想安排，我可以先幫你看看這週末的時段。',
-  c3: '雅婷午安！你上次的自然款差不多快到回補時間了，最近如果想維持輕盈的效果，我可以幫你留幾個方便的時段。',
-  c4: '佳蓉午安！想問問你上次保濕導入後的肌膚感受如何？再幾天會進入適合做第二次保養的時間，如果覺得效果不錯，我可以幫你留晚上時段。',
-  c5: '婉雯午安！最近髮色維持得還好嗎？我整理了幾個低調色的參考，等你差不多想補色時再一起看看，不急著現在決定。',
+  c1: '示範客戶 A 午安！想起你上次做的自然棕護髮，這週剛好進入適合整理的時間了。最近頭髮狀況還好嗎？如果你想回來，我可以幫你留 10 月平日下午的時段。',
+  c2: '示範客戶 B 午安！最近換季肌膚還適應嗎？上次深層清潔後差不多進入保養週期，如果你想安排，我可以先幫你看看這週末的時段。',
+  c3: '示範客戶 C 午安！你上次的自然款差不多快到回補時間了，最近如果想維持輕盈的效果，我可以幫你留幾個方便的時段。',
+  c4: '示範客戶 D 午安！想問問你上次保濕導入後的肌膚感受如何？再幾天會進入適合做第二次保養的時間，如果覺得效果不錯，我可以幫你留晚上時段。',
+  c5: '示範客戶 E 午安！最近髮色維持得還好嗎？我整理了幾個低調色的參考，等你差不多想補色時再一起看看，不急著現在決定。',
 };
 
 const SEED_TIER_LABEL: Record<string, string> = {
