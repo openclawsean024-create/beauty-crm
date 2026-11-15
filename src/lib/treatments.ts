@@ -18,6 +18,7 @@ export interface Treatment {
   performedAt: string; // ISO timestamp
   designerId?: string; // 設計師 ID
   notes?: string;
+  storeId?: string; // 店別（M1 新增，選填）
 }
 
 export interface TreatmentDraft {
@@ -31,6 +32,7 @@ export interface TreatmentDraft {
   performedAt: string;
   designerId?: string;
   notes?: string;
+  storeId?: string;
 }
 
 export function recordTreatment(draft: TreatmentDraft): Treatment {
@@ -52,6 +54,7 @@ export function recordTreatment(draft: TreatmentDraft): Treatment {
     performedAt: draft.performedAt,
     designerId: draft.designerId,
     notes: draft.notes,
+    storeId: draft.storeId,
   };
 }
 

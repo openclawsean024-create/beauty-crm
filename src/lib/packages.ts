@@ -110,7 +110,7 @@ export function packageStatus(
 }
 
 /** 扣一堂。堂數用完、已過期或尚未開始時 throw PackageError。 */
-export function usePackageSession(pkg: ServicePackage, today: string): ServicePackage {
+export function consumePackageSession(pkg: ServicePackage, today: string): ServicePackage {
   if (isExpired(pkg, today)) throw new PackageError('PACKAGE_EXPIRED');
   if (diffDays(pkg.startDate, today) < 0) throw new PackageError('PACKAGE_NOT_STARTED');
   if (isUsedUp(pkg)) throw new PackageError('PACKAGE_USED_UP');

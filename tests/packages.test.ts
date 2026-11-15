@@ -10,7 +10,7 @@ import {
   remainingValue,
   summarizePackages,
   usageRatio,
-  usePackageSession,
+  consumePackageSession,
 } from '@/lib/packages';
 
 const base = {
@@ -45,13 +45,13 @@ describe('AC-001 packages — 套票', () => {
 
   it('AC-001: 扣堂後已用 +1；堂數用完時不可再扣', () => {
     let pkg = createPackage({ ...base, usedSessions: 9 });
-    pkg = usePackageSession(pkg, '2026-11-16');
+    pkg = consumePackageSession(pkg, '2026-11-16');
     expect(pkg.usedSessions).toBe(10);
     expect(remainingSessions(pkg)).toBe(0);
     expect(packageStatus(pkg, '2026-11-16')).toBe('used-up');
-    expect(() => usePackageSession(pkg, '2026-11-16')).toThrow(PackageError);
+    expect(() => consumePackageSession(pkg, '2026-11-16')).toThrow(PackageError);
     try {
-      usePackageSession(pkg, '2026-11-16');
+      consumePackageSession(pkg, '2026-11-16');
     } catch (err) {
       expect((err as PackageError).code).toBe('PACKAGE_USED_UP');
     }
@@ -61,13 +61,13 @@ describe('AC-001 packages — 套票', () => {
     const pkg = createPackage(base);
     expect(daysUntilExpiry(pkg, '2027-02-28')).toBe(0);
     expect(isExpired(pkg, '2027-02-28')).toBe(false);
-    expect(usePackageSession(pkg, '2027-02-28').usedSessions).toBe(5);
+    expect(consumePackageSession(pkg, '2027-02-28').usedSessions).toBe(5);
 
     expect(daysUntilExpiry(pkg, '2027-03-01')).toBe(-1);
     expect(isExpired(pkg, '2027-03-01')).toBe(true);
     expect(packageStatus(pkg, '2027-03-01')).toBe('expired');
     try {
-      usePackageSession(pkg, '2027-03-01');
+      consumePackageSession(pkg, '2027-03-01');
       throw new Error('should have thrown');
     } catch (err) {
       expect((err as PackageError).code).toBe('PACKAGE_EXPIRED');
@@ -77,7 +77,7 @@ describe('AC-001 packages — 套票', () => {
   it('AC-001: 尚未開始的套票不可扣堂', () => {
     const pkg = createPackage(base);
     try {
-      usePackageSession(pkg, '2026-08-31');
+      consumePackageSession(pkg, '2026-08-31');
       throw new Error('should have thrown');
     } catch (err) {
       expect((err as PackageError).code).toBe('PACKAGE_NOT_STARTED');

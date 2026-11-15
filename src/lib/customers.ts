@@ -16,6 +16,14 @@ export interface Customer {
   notes?: string;
   createdAt: string; // ISO timestamp
   updatedAt: string; // ISO timestamp
+  // --- M1 新增（皆為選填，舊資料不受影響）---
+  storeId?: string; // 所屬店別（FR-014）
+  ownerDesignerId?: string; // 負責設計師帳號 id
+  /** 敏感個資同意，與行銷同意（consent）分開；未設定視為 pending（FR-012） */
+  sensitiveDataConsent?: ConsentStatus;
+  skinCondition?: string; // S 級：皮膚狀況
+  healthNotes?: string; // S 級：健康相關備註
+  lineUserId?: string; // LINE 提醒收件者（M1 僅 dry-run 使用假 id）
 }
 
 export function createCustomer(input: {
@@ -29,6 +37,12 @@ export function createCustomer(input: {
   tags?: string[];
   consent?: ConsentStatus;
   notes?: string;
+  storeId?: string;
+  ownerDesignerId?: string;
+  sensitiveDataConsent?: ConsentStatus;
+  skinCondition?: string;
+  healthNotes?: string;
+  lineUserId?: string;
 }): Customer {
   if (!input.id || !input.id.trim()) throw new Error('customer id required');
   if (!input.name || !input.name.trim()) throw new Error('customer name required');
@@ -49,6 +63,12 @@ export function createCustomer(input: {
     notes: input.notes,
     createdAt: now,
     updatedAt: now,
+    storeId: input.storeId,
+    ownerDesignerId: input.ownerDesignerId,
+    sensitiveDataConsent: input.sensitiveDataConsent,
+    skinCondition: input.skinCondition,
+    healthNotes: input.healthNotes,
+    lineUserId: input.lineUserId,
   };
 }
 
