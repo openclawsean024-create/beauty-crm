@@ -1,92 +1,90 @@
 'use client';
 
-import { t, type Lang } from '@/lib/i18n';
+import { t, tf, type Lang } from '@/lib/i18n';
+import type { KpiSummary } from '@/lib/kpi';
 
 interface StatsCardsProps {
   lang: Lang;
   followupsDue: number;
   overdueCount: number;
   upcomingCount: number;
-  returnRatePct: number;
-  returnRateDeltaPct: number;
-  visitsThisMonth: number;
-  visitsDeltaPct: number;
-  serviceRevenue: number;
-  revenueTargetPct: number;
+  kpis: KpiSummary;
 }
 
-interface StatItem {
-  labelKey: 'metricFollowups' | 'metricReturn' | 'metricVisits' | 'metricRevenue';
-  icon: string;
-  value: string;
-  note: React.ReactNode;
+function signed(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value}`;
 }
 
-export default function StatsCards({
-  lang,
-  followupsDue,
-  overdueCount,
-  upcomingCount,
-  returnRatePct,
-  returnRateDeltaPct,
-  visitsThisMonth,
-  visitsDeltaPct,
-  serviceRevenue,
-  revenueTargetPct,
-}: StatsCardsProps) {
-  const revenueLabel = `NT$ ${Math.round(serviceRevenue / 1000).toLocaleString()}.${Math.round((serviceRevenue % 1000) / 100)}k`;
-
-  const items: StatItem[] = [
-    {
-      labelKey: 'metricFollowups',
-      icon: '◷',
-      value: String(followupsDue),
-      note: (
-        <>
-          <b>{overdueCount} overdue</b> · {upcomingCount} upcoming
-        </>
-      ),
-    },
-    {
-      labelKey: 'metricReturn',
-      icon: '↗',
-      value: `${returnRatePct}%`,
-      note: (
-        <>
-          <b>{returnRateDeltaPct >= 0 ? '+' : ''}{returnRateDeltaPct}%</b> vs last month
-        </>
-      ),
-    },
-    {
-      labelKey: 'metricVisits',
-      icon: '＋',
-      value: String(visitsThisMonth),
-      note: (
-        <>
-          <b>{visitsDeltaPct >= 0 ? '+' : ''}{visitsDeltaPct}%</b> vs last month
-        </>
-      ),
-    },
-    {
-      labelKey: 'metricRevenue',
-      icon: '$',
-      value: revenueLabel,
-      note: <>{revenueTargetPct}% of monthly target</>,
-    },
-  ];
-
+/** KPI 卡片：四個數字全部由療程與回訪佇列計算，沒有寫死的展示數字。 */
+export default function StatsCards({ lang, followupsDue, overdueCount, upcomingCount, kpis }: StatsCardsProps) {
+  const noBaseline = t(lang, 'kpiNoBaseline');
   return (
     <section className="metrics" aria-label={t(lang, 'metricFollowups')}>
-      {items.map((item) => (
-        <article key={item.labelKey} className="metric">
-          <div className="metric-top">
-            <span>{t(lang, item.labelKey)}</span>
-            <span className="metric-icon" aria-hidden="true">{item.icon}</span>
-          </div>
-          <div className="metric-value mono">{item.value}</div>
-          <div className="metric-foot">{item.note}</div>
-        </article>
-      ))}
+      <article className="metric">
+        <div className="metric-top">
+          <span>{t(lang, 'metricFollowups')}</span>
+          <span className="metric-icon" aria-hidden="true">◷</span>
+        </div>
+        <div className="metric-value mono" data-testid="kpi-followups">{followupsDue}</div>
+        <div className="metric-foot">
+          <b>{tf(lang, 'kpiOverdue', { n: overdueCount })}</b> · {tf(lang, 'kpiUpcoming', { n: upcomingCount })}
+        </div>
+      </article>
+
+      <article className="metric">
+        <div className="metric-top">
+          <span>{t(lang, 'metricReturn')}</span>
+          <span className="metric-icon" aria-hidden="true">↗</span>
+        </div>
+        <div className="metric-value mono" data-testid="kpi-return">
+          {kpis.returnRatePct === null ? '—' : `${kpis.returnRatePct}%`}
+        </div>
+        <div className="metric-foot" title={t(lang, 'kpiReturnNote')}>
+          {kpis.returnRateDeltaPts === null ? (
+            noBaseline
+          ) : (
+            <>
+              <b>{signed(kpis.returnRateDeltaPts)} {t(lang, 'kpiPoints')}</b> {t(lang, 'kpiVsPrev30')}
+            </>
+          )}
+        </div>
+      </article>
+
+      <article className="metric">
+        <div className="metric-top">
+          <span>{t(lang, 'metricVisits')}</span>
+          <span className="metric-icon" aria-hidden="true">＋</span>
+        </div>
+        <div className="metric-value mono" data-testid="kpi-visits">{kpis.visitsThisMonth}</div>
+        <div className="metric-foot">
+          {kpis.visitsDeltaPct === null ? (
+            noBaseline
+          ) : (
+            <>
+              <b>{signed(kpis.visitsDeltaPct)}%</b> {t(lang, 'kpiVsLastMonth')}
+            </>
+          )}
+        </div>
+      </article>
+
+      <article className="metric">
+        <div className="metric-top">
+          <span>{t(lang, 'metricRevenue')}</span>
+          <span className="metric-icon" aria-hidden="true">$</span>
+        </div>
+        <div className="metric-value mono" data-testid="kpi-revenue">
+          NT$ {kpis.revenueThisMonth.toLocaleString('en-US')}
+        </div>
+        <div className="metric-foot">
+          {kpis.revenueDeltaPct === null ? (
+            noBaseline
+          ) : (
+            <>
+              <b>{signed(kpis.revenueDeltaPct)}%</b> {t(lang, 'kpiVsLastMonth')}
+            </>
+          )}
+        </div>
+      </article>
     </section>
   );
 }

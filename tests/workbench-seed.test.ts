@@ -3,7 +3,7 @@
 // queue/memory/funnel/next-action 4 種主要狀態。
 
 import { describe, it, expect } from 'vitest';
-import { getSeedCustomers, getSeedTreatments, TODAY_FIXED } from '@/components/workbench/seed';
+import { getSeedCustomers, getSeedTreatments, TODAY_FIXED } from './fixtures/workbench-seed';
 import { listOverdue, listDueSoon } from '@/lib/reminders';
 import type { Customer } from '@/lib/customers';
 import type { Treatment } from '@/lib/treatments';

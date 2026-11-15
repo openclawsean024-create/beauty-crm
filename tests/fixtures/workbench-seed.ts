@@ -1,6 +1,9 @@
-// Beauty CRM — workbench seed + types
-// 對齊 beauty-crm-redesign.html (Sean-approved prototype)。
-// 不修改 src/lib/* domain logic,只在 UI 層補上展示所需的標籤/備註。
+// Beauty CRM — 舊版 workbench seed（測試用 fixture）
+//
+// @deprecated 原本位於 src/components/workbench/seed.ts，屬於未被任何頁面引用的
+// 第二套工作台。M1（GOAL AC-002）只保留 Dashboard 這一套 UI 入口，workbench 元件已移除；
+// 這份 seed 只剩 tests/workbench-seed.test.ts 使用，因此搬到 tests/fixtures。
+// App 的示範資料請看 src/lib/seed.ts。
 
 import type { Customer, ConsentStatus } from '@/lib/customers';
 import type { Treatment, TreatmentCategory } from '@/lib/treatments';
