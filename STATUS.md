@@ -5,7 +5,7 @@
 - 實作分支：`feat/m1`（從 `chore/prd-rebuild` 開出）
 - 併入來源：`openclawsean024-create/beauty-crm-concierge`（`main` @ `4921a19`，只讀，未封存）
 - 規格：`PRD/SPEC.md` v4.0；目標：`GOAL.md`（M1）
-- 狀態：🟢 **M1 八條 AC 全部有通過的測試**（2026-11-16，本機）；待 PR 上 GitHub Actions 結果與 Sean 覆審
+- 狀態：🟢 **M1 八條 AC 全部有通過的測試**（2026-11-16）；PR openclawsean024-create/beauty-crm#3 的 GitHub Actions 全綠；待 Sean 覆審
 
 ## M1 進度（分支 `feat/m1`）
 
@@ -32,6 +32,16 @@
 | `npm run e2e` | 0 | Playwright 4 spec、24 tests 通過（約 16 秒） |
 | `npm start` | — | 啟動後 `GET /` 回 200 |
 | secret 掃描（SOP） | 1（無結果） | — |
+
+### GitHub Actions（PR #3，run 43757347448，Node 20）
+
+| Job | 結果 |
+|---|---|
+| Lint | ✅ 47s |
+| Typecheck | ✅ 52s |
+| Unit Tests | ✅ 48s |
+| Build | ✅ 54s |
+| E2E (Playwright) | ✅ 1m37s |
 
 ## 原有 77 個測試
 
