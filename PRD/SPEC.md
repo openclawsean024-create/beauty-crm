@@ -1,1167 +1,358 @@
-# Beauty CRM｜療程回流與客戶記憶工作台 — 規格計劃書
+# 美業客戶回訪 CRM（Beauty CRM）— 產品需求規格 v4.0
 
-> **v3.0.2 升級 banner**（2026-09-06，Sean 10-repo-fleet 補完）
-> 本檔 v3.0（2026-07-19 forced upgrade）內容完整保留；v3.0.2 為 fleet 級補丁，不破壞既有 sweet-spot 結論。
-> 本次新增：① §A v3.0.2 增量（CI/Test/Lint/Deploy 收斂）、② PRD/CHANGELOG.md 對齊、③ .github/workflows/ci.yml 4 jobs 契約、④ Definition of Done 與 SPEC §1–§15 對齊。
-> 不可變更項：sweet=7.6、商業化=83.2、action=GO with strict pilot gate、§1.5 Non-Goals、§3.1 MVP 邊界。
+> 版本：v4.0（PRD 重建）｜更新日期：2026-11-16｜狀態：文件重建，尚未依本版開發
+> 主 repo：`openclawsean024-create/beauty-crm`（預設分支 `main`，重建基準 commit `8e0d06c`）
+> 併入 repo：`openclawsean024-create/beauty-crm-concierge`（`main`，commit `4921a19`，只讀）
+> 商業依據：Notion「可產品化商品」資料庫（唯一商業依據，見 §1.5）
+> 取代：v3.0 / v3.0.2（2026-07-19 / 2026-09-06）。舊版的「sweet spot 7.6 / 商業化 83.2」為內部打分，非市場事實，本版不再引用為依據；舊版仍可由 git 歷史查閱。
 
----
-
-# Beauty CRM｜療程回流與客戶記憶工作台 — 規格計劃書 v3.0
-
-> 版本：v3.0｜更新日期：2026-07-19｜維護者：Sean PRD Rewrite Specialist｜對接技術：Hermes Agent + engineering
-> 文件狀態：forced v3.0 upgrade（12 SPEC SOP 第 3 件，已完成 pos-multitrade + emed-glp1，本檔為 beauty-crm）。
-> 原始碼：https://github.com/openclawsean024-create/beauty-crm
-> sweet spot：7.6/10｜商業化分數：83.2/100｜建議動作：**GO with strict pilot gate**
-
-本文件的數字、競品與市場結論均為待驗證假設；不可把 mock、HTTP 可達性或訪談口頭意願當成營收事實。
-v3.0 統一改寫公式：`sweet = (Q1+Q2+Q3+Q4+Q5) / 5` (0–10)；`商業化 = 30 + sweet × 7` (0–100)；真實推導，不取保守整數。
+本文件所有「已實作／部分／未實作」皆以 2026-11-16 實際閱讀程式碼與執行 `npm test`／`npm run build` 的結果為準，不以 README 推論。README 與程式不一致之處列於 §12。
 
 ---
 
-## §A. v3.0.2 增量（2026-09-06，Sean 10-repo-fleet 補完）
+## 1. 產品概述
 
-> v3.0.2 不重新評分，僅補齊工程交付物（CI / test / lint / deploy contract）以對齊 fleet 規範。
+### 1.1 問題
 
-### §A.1 升級原因
+台灣小型美業店家（美甲、美睫、皮膚管理、髮型）的回頭客高度依賴設計師個人記憶與 LINE 聊天紀錄：
 
-v3.0（2026-07-19 forced upgrade）完成了 sweet-spot 體檢、5 問量表、ADR 與市場驗證，文件強度達標；但 §7「部署契約」僅口頭描述，缺：
-1. **CI 標準化**：每個 repo 須有 4-job workflow（lint / test / build / deploy）
-2. **測試契約**：47 條 vitest AC 需可重現
-3. **Lint 基線**：0 error、warning 透明揭露
-4. **Deploy 契約**：Next.js → Vercel，secrets 需求明示
+1. **不知道誰該回來了**：每類服務有自然回流週期（例如美睫補睫、美甲卸甲重做），但沒有人系統化追蹤「上次做什麼、多久該回來」。
+2. **客戶記憶散落**：偏好、過敏／禁忌、指定設計師等資訊只存在設計師腦中或手機，換人或多店時就流失。
+3. **追蹤怕打擾、怕違法**：行銷訊息需要同意；過敏、健康相關資料屬敏感個資，小店缺乏同意與保管流程。
 
-v3.0.2 補上這層工程契約，後續 sprint 才有可驗收的 CI 結果。
+### 1.2 目標客群
 
-### §A.2 §1–§15 對齊（不變更既有結論）
-
-| SPEC 章節 | v3.0 結論 | v3.0.2 補丁 |
+| 類型 | 描述 | 備註 |
 |---|---|---|
-| §0 文件資訊 | v3.0 forced upgrade | 加 v3.0.2 banner 指向本節 |
-| §1.3 核心價值 | 療程回流 CRM，不正面競爭預約 | 不變 |
-| §1.5 Non-Goals | 不做預約/POS/自動行銷/醫療/多店 | 不變 |
-| §3.1 FR-001~010 | 10 條 P0 MUST | 不變；測試覆蓋維持 47 條 |
-| §3.2 v2 P1 | LINE 提醒/多設計師等 6 條 | 不變 |
-| §15.11 sweet | 7.6/10（不變） | 不重新體檢 |
-| §15.12 ADR | 6 條 | 不變 |
+| Primary | 台灣 1–5 人的美甲、美睫、皮膚管理、髮型工作室；已用 LINE／IG 接預約，但沒有可靠服務紀錄 | 客戶數規模、付費意願待訪談確認 |
+| Secondary | 2–3 間分店的小型連鎖（需多店與帳號權限） | Notion「上市前要補：多店與帳號權限」 |
+| 不服務 | 醫美診所、醫療機構 | 涉及醫療法與醫療廣告，見 §7 |
 
-### §A.3 工程交付物（新增）
+### 1.3 價值主張
 
-| 項目 | 路徑 | 內容 |
+不和預約／POS 系統正面競爭，專注「服務完成後 3–90 天」：記住客戶做過什麼與禁忌、算出何時該回訪、由設計師核准後再用 LINE 提醒，並守住同意與敏感個資規則。
+
+### 1.4 獲利模式
+
+- **SaaS 訂閱**（Notion：獲利模式 SaaS 訂閱、獲利潛力「高」）。
+- 方案分層草案（沿用 v3.0 SPEC 的**內部假設**，未經市場驗證，價格待試用店家訪談後確認）：
+
+| 方案（草案） | 價格（待確認） | 主要限制（草案） |
 |---|---|---|
-| PRD/CHANGELOG.md | `PRD/CHANGELOG.md` | v0.1.0 → v0.2.0 → v3.0 → v3.0.2 版本歷史 |
-| GHA CI | `.github/workflows/ci.yml` | 4-job workflow（lint / test / build / deploy-to-Vercel） |
-| Definition of Done | 本節 §A.4 | 6 項可驗收條件 |
+| 免費 | NT$0 | 1 店、1 帳號、客戶數上限 |
+| 設計師 | NT$299／月（假設） | 1 店、較高客戶上限、LINE 提醒 |
+| 工作室 | NT$799／月（假設） | 多帳號、權限、LINE 提醒 |
+| 多店 | 待確認 | 多店、跨店報表 |
 
-### §A.4 Definition of Done（v3.0.2 fleet 標準）
+### 1.5 與 Notion 商品資料庫的對應
 
-- [x] `PRD/SPEC.md` v3.0.2 banner + 本增量章節已加入
-- [x] `PRD/CHANGELOG.md` 包含 v0.1.0 / v0.2.0 / v3.0 / v3.0.2 四個條目
-- [x] `.github/workflows/ci.yml` 存在，4 jobs（lint / test / build / deploy）
-- [x] `npm run lint` → 0 error（warning 透明揭露）
-- [x] `npm test` → 47/47 通過（7 個 test file，~0.3s）
-- [x] `npm run build` → Next.js 16 + Turbopack，0 error，3 static route
-- [x] Deploy 目標：Vercel（既有 vercel.json / Next.js 16 預設 deploy target）
-
-### §A.5 不變更項宣告
-
-- ✅ sweet=7.6、商業化=83.2 維持（不重做體檢）
-- ✅ §1.5 Non-Goals 維持（不做預約/POS/自動行銷）
-- ✅ §3.1 FR-001~010 維持（10 條 P0 MUST）
-- ✅ §15.11 量表 / §15.12 ADR / §15.13 市場驗證 維持
-- ✅ domain 邏輯（6 個 pure-function lib）不重構
-- ✅ 不引入 heavyweight dependency
-- ✅ 純前端 in-memory 架構不變
-
----
-
-## 0. 文件資訊表 (Document Info)
-
-| 欄位 | 值 |
+| Notion 欄位 | 值 |
 |---|---|
-| 文件版本 | v3.0（forced upgrade from v2.2.1） |
-| 上版 SHA | 8581a1b7adde774fae03f951dd7bab2813fe9dbd |
-| 上一版版本 | v2.2.1（2026-07-19 sweet-spot rewrite） |
-| 升級日期 | 2026-07-19 |
-| 維護者 | Sean PRD Rewrite Specialist |
-| 對接工程 | Hermes Agent + engineering |
-| 來源 | https://github.com/openclawsean024-create/beauty-crm |
-| 主題 | 台灣美業客戶長期管理（美業 CRM / 沙龍會員經營系統） |
-| Sweet Spot Score | 7.6 / 10 |
-| 商業化分數 | 83.2 / 100（公式：30 + 7.6×7 = 83.2；不取保守） |
-| 行動建議 | **GO with strict pilot gate**（sweet=7.6 > 7，可由 investigate 升 go，但必須 pilot 驗證） |
-| Stage Gate | 5 訪談 → 5 pilot → landing smoke → 才進 build sprint |
-| 升級範圍 | §0（本文）/ §15.11（v3.0 統一 0–10 量表）/ §15.12 ADR 補強 / §15.13 市場驗證補強 |
-| SOP 上下文 | OpenClaw 一人公司 12 SPEC v3.0 升級清單，第 3 件（前 2：pos-multitrade / emed-glp1） |
-| Notion 對齊 | 本 sub-agent 不動 Notion；由 main agent 同步 |
+| 產品名稱 | 美業客戶回訪 CRM |
+| 優先順序 | P1 |
+| 開發順位 | 第 1 個 |
+| 獲利潛力／模式 | 高／SaaS 訂閱 |
+| 目標客群 | 台灣美甲、美睫、皮膚管理、髮型等小型美業店家 |
+| 現況完成度（Notion 記載） | 60 |
+| 上市前要補 | 兩個 repo 合併、LINE 提醒整合、多店與帳號權限、計費、找 2–3 家店試用 |
+| 主要風險 | 客戶健康與過敏資料屬敏感個資，需加密與同意流程；已有美業 App 競品 |
+
+> 註：Notion 記載完成度 60。依本次程式盤點，主 repo 是「純前端、單店、假資料、無後端」原型；domain 邏輯完成度高，但上市必要項目（LINE、權限、計費、加密、真實資料流）皆未實作。完成度數字是否要下修，待 Sean 決定（§13）。
+
+### 1.6 Non-Goals（明確不做）
+
+- 不做完整預約排程系統、POS、庫存、員工薪資。
+- 不做醫療診斷、醫美療效宣稱、AI 自動判斷膚況。
+- 不自動發送訊息：所有對客訊息須設計師核准。
+- 不在 M1 處理真實個資、真實金流、真實 LINE 發送。
+
 ---
-## 1. 產品概述 (Product Overview)
 
-### 1.1 問題陳述 (Problem Statement)
+## 2. 競品與差異
 
-本版完全重寫，依 2026 sweet spot 5 問體檢：7.6/10，建議動作為「GO with strict pilot gate」。
-市場不是沒有需求，而是現有競品 Fresha、Dolyu、Folio、StyleSeat、Booksy 已覆蓋預約/POS 主功能。體檢找到的缺口是：預約是紅海，Dolyu/Folio/Booksy 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
-問題定義採「可觀察工作」而不是抽象 AI 願景：
-1. 使用者目前如何完成任務。
-2. 哪一步造成可量化時間或錯誤成本。
-3. 既有工具為何沒有解決該一步。
-4. 使用者是否願意在兩週內重複使用。
-5. 團隊能否在一人維護範圍內交付。
-Sweet spot 約束：不以競品缺少的「更多功能」當差異，而以單一成果、可驗證事件、明確排除項建立產品邊界。
+競品名單取自 v3.0 SPEC 既有記錄；其功能範圍、台灣市佔、價格**均未在本次重新查證，標「待確認」**，不得當作事實引用。
 
-### 1.2 目標使用者 (User Personas)
-
-| Persona | 可觸達樣本 | 工作情境 | 主要任務 | 願付訊號 |
-|---|---|---|---|---|
-| Primary | 10 位 pilot | 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。 | 每週固定工作 | 願意提供真實資料並重做 |
-| Secondary | 5 位 adjacent | 相鄰工具使用者 | 目前用競品或表格 | 願意切換/匯出 |
-| Buyer/Influencer | 3–5 位 | 顧問、主管或校園/社群 | 替他人推薦工具 | 願意安排 demo |
-
-### 1.3 核心價值主張 (Value Proposition)
-
-> 「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」
-這個主張直接回應 sweet=6：不是複製 Dolyu、Folio、Fresha、JustBook 的主功能，而是聚焦「預約功能是紅海，Dolyu/Folio 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。」所留下的可驗證空間。
-價值交換：使用者付出少量結構化輸入，換取一個可檢查、可匯出、可採取下一步的結果；系統不要求相信黑箱分數。
-
-### 1.4 商業目標 (KPIs / OKRs)
-
-| 期間 | 產品 KPI | 成功門檻 | 不應追逐 |
-|---|---|---|---|
-| Discovery 2 週 | 完成 5 次訪談 + 5 位 pilot | ≥5 人提供真實資料 | 總註冊數 |
-| MVP 4 週 | 核心事件完成率 | ≥60% pilot 完成 2 次 | 功能數 |
-| M6 | 付費/合作訊號 | 依本案 §15 目標 | 虛大 TAM |
-| 每週 | 品質與成本 | 錯誤可追溯、成本可預測 | 模型 token 量 |
-
-### 1.5 ⭐ Non-Goals (明確不做)
-
-- ❌ 不做線上預約日曆與候位
-- ❌ 不做 POS、庫存、薪資與抽成
-- ❌ 不自動向客戶發送未核准行銷訊息
-- ❌ 不做醫療診斷或療程效果保證
-- ❌ 不在 MVP 做多店與複雜權限
-- ❌ 不因 sweet=7.6 直接擴張；仍需 pilot 完成核心回流指標
-Non-Goals 執行規則：任何需求若命中以上排除項，必須寫入 decision log；v3.0 (sweet=7.6) 專案在 pilot 行為門檻達成前不得轉成 build sprint。
----
-## 2. 使用者場景與流程 (User Scenarios & Flows)
-
-### 2.1 使用者流程圖
-
-```mermaid
-flowchart LR
-  A[進入 landing] --> B[選 primary job]
-  B --> C[匯入最小資料]
-  C --> D[系統產生草稿/分析]
-  D --> E[人工檢查與修正]
-  E --> F[交付或執行下一步]
-  F --> G[記錄結果與時間]
-  G --> H{再次使用?}
-  H -->|是| C
-  H -->|否| I[訪談/退出原因]
-```
-
-流程原則：先讓使用者完成一個真實 job，再要求註冊、同步或付款。
-### 2.2 關鍵用戶故事 (User Stories)
-
-#### US-001：客戶檔案：聯絡方式、偏好、禁忌與同意狀態
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want 客戶檔案：聯絡方式、偏好、禁忌與同意狀態
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-#### US-002：療程紀錄：項目、日期、產品、照片與設計師備註
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want 療程紀錄：項目、日期、產品、照片與設計師備註
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-#### US-003：服務週期模板：美甲/美睫/護膚/髮型可調
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want 服務週期模板：美甲/美睫/護膚/髮型可調
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-#### US-004：下一次回訪日期與「待聯絡」清單
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want 下一次回訪日期與「待聯絡」清單
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-#### US-005：設計師手動核准的 LINE/簡訊草稿，不直接自動發送
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want 設計師手動核准的 LINE/簡訊草稿，不直接自動發送
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-#### US-006：客戶標籤與 VIP 依回訪/消費可解釋計算
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want 客戶標籤與 VIP 依回訪/消費可解釋計算
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-#### US-007：Before/After 照片壓縮與明確同意紀錄
-> As a 一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-> I want Before/After 照片壓縮與明確同意紀錄
-> So that 我能在不改變原有工作習慣下完成一個可交付結果。
-
-### 2.3 邊界場景 (Edge Cases)
-
-- 輸入資料不完整：顯示缺漏欄位與可繼續的最小路徑。
-- 使用者不同意保存：只在 session memory 運作，離開即清除。
-- 外部服務逾時：保留草稿、顯示狀態、允許重試且去重。
-- 使用者不採用建議：記錄 reject reason，不把拒絕視為錯誤。
-- 同一事件重複送出：以 idempotency key 防止重複產生。
-- 低網速或手機畫面：文字流程可完成核心 job。
-- 敏感資料誤匯入：提供欄位遮罩與立即刪除。
-- 輸出不符格式：先顯示 validation findings，不直接交付。
-
-### 2.4 Service Blueprint（前台/後台/證據）
-
-| 階段 | 使用者看到 | 系統做什麼 | 品質證據 |
-|---|---|---|---|
-| 取得 | 一個清楚 CTA | 建立匿名 session | event timestamp |
-| 準備 | 欄位與限制 | 驗證格式/權限 | validation log |
-| 生成 | 草稿與進度 | 呼叫 adapter 或 mock | model/cost metadata |
-| 核准 | 差異與風險 | 鎖定版本 | approval event |
-| 回顧 | 成果與 ROI | 計算前後差異 | exportable report |
----
-## 3. 功能性需求 (Functional Requirements)
-
-### 3.1 MVP（必做，P0；v3.0 sweet-spot redefinition）
-
-本 MVP 由 sweet=7.6 重新定義：保留「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」所需的最短閉環，不做競品已主導的廣泛功能。
-#### FR-001：客戶檔案：聯絡方式、偏好、禁忌與同意狀態（MUST）
-- 目的：將 客戶檔案：聯絡方式、偏好、禁忌與同意狀態 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-002：療程紀錄：項目、日期、產品、照片與設計師備註（MUST）
-- 目的：將 療程紀錄：項目、日期、產品、照片與設計師備註 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-003：服務週期模板：美甲/美睫/護膚/髮型可調（MUST）
-- 目的：將 服務週期模板：美甲/美睫/護膚/髮型可調 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-004：下一次回訪日期與「待聯絡」清單（MUST）
-- 目的：將 下一次回訪日期與「待聯絡」清單 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-005：設計師手動核准的 LINE/簡訊草稿，不直接自動發送（MUST）
-- 目的：將 設計師手動核准的 LINE/簡訊草稿，不直接自動發送 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-006：客戶標籤與 VIP 依回訪/消費可解釋計算（MUST）
-- 目的：將 客戶標籤與 VIP 依回訪/消費可解釋計算 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-007：Before/After 照片壓縮與明確同意紀錄（MUST）
-- 目的：將 Before/After 照片壓縮與明確同意紀錄 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-008：回流漏斗：應回訪、已聯絡、已預約（手動標記）（MUST）
-- 目的：將 回流漏斗：應回訪、已聯絡、已預約（手動標記） 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-009：本地加密匯出、資料刪除與裝置警告（MUST）
-- 目的：將 本地加密匯出、資料刪除與裝置警告 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-#### FR-010：手機單手快速新增服務紀錄（MUST）
-- 目的：將 手機單手快速新增服務紀錄 變成可測試的最小行為。
-- 輸入：使用者提供的最小必要資料；不得默認補造關鍵事實。
-- 輸出：可讀、可修改、可匯出並帶版本/時間戳的結果。
-- 失敗：保留草稿、顯示可理解錯誤與下一步。
-
-### 3.2 v2（加值，P1）
-
-- P1-01 LINE 官方帳號單向提醒：只有在 MVP 指標達標且有 3 個以上相同請求時排入。
-- P1-02 多設計師同店 workspace：只有在 MVP 指標達標且有 3 個以上相同請求時排入。
-- P1-03 生日/療程週期 campaign：只有在 MVP 指標達標且有 3 個以上相同請求時排入。
-- P1-04 月度回流報表與 cohort：只有在 MVP 指標達標且有 3 個以上相同請求時排入。
-- P1-05 跨裝置加密同步：只有在 MVP 指標達標且有 3 個以上相同請求時排入。
-- P1-06 從預約工具匯入服務完成事件：只有在 MVP 指標達標且有 3 個以上相同請求時排入。
-
-### 3.3 v3（探索，P2）
-
-- P2-01 多店與品牌治理：不承諾時程，需重新檢查競品與合規。
-- P2-02 客戶自助偏好表單：不承諾時程，需重新檢查競品與合規。
-- P2-03 POS/預約雙向整合：不承諾時程，需重新檢查競品與合規。
-- P2-04 匿名化療程基準：不承諾時程，需重新檢查競品與合規。
-
-### 3.4 ⭐ Acceptance Criteria (Given / When / Then)
-
-**AC-001：新增客戶時可記錄偏好、禁忌與資料同意**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「新增客戶時可記錄偏好、禁忌與資料同意」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 若失敗則提供降級路徑，不遺失已輸入資料。
-
-**AC-002：新增服務後自動計算下一次建議日期且可手動覆寫**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「新增服務後自動計算下一次建議日期且可手動覆寫」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 使用者可檢查、修改或匯出結果，不被黑箱鎖定。
-
-**AC-003：打開客戶頁 2 秒內看到上次服務摘要**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「打開客戶頁 2 秒內看到上次服務摘要」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 若失敗則提供降級路徑，不遺失已輸入資料。
-
-**AC-004：含過敏/禁忌的客戶在服務建立前顯示醒目確認**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「含過敏/禁忌的客戶在服務建立前顯示醒目確認」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 使用者可檢查、修改或匯出結果，不被黑箱鎖定。
-
-**AC-005：照片大於 5MB 時壓縮到 500KB 左右並保留原檔不出裝置**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「照片大於 5MB 時壓縮到 500KB 左右並保留原檔不出裝置」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 若失敗則提供降級路徑，不遺失已輸入資料。
-
-**AC-006：回訪清單可依逾期天數排序**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「回訪清單可依逾期天數排序」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 使用者可檢查、修改或匯出結果，不被黑箱鎖定。
-
-**AC-007：LINE 草稿必須先由設計師核准**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「LINE 草稿必須先由設計師核准」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 若失敗則提供降級路徑，不遺失已輸入資料。
-
-**AC-008：客戶撤回行銷同意後不再出現在 campaign 清單**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「客戶撤回行銷同意後不再出現在 campaign 清單」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 使用者可檢查、修改或匯出結果，不被黑箱鎖定。
-
-**AC-009：VIP 規則顯示觸發原因而非黑箱 badge**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「VIP 規則顯示觸發原因而非黑箱 badge」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 若失敗則提供降級路徑，不遺失已輸入資料。
-
-**AC-010：匯出/刪除流程可由店主獨立完成**
-- **Given** 使用者進入對應流程且權限有效
-- **When** 執行「匯出/刪除流程可由店主獨立完成」
-- **Then** 系統產生可驗證結果，並寫入事件時間、版本與錯誤狀態。
-- **And** 使用者可檢查、修改或匯出結果，不被黑箱鎖定。
-
-### 3.5 優先級與排除閘門
-
-| 需求類型 | 進入條件 | 退出條件 | Owner |
-|---|---|---|---|
-| P0 | 核心 job 可重做 | 連續 2 sprint 通過 AC | CPO/CTO |
-| P1 | 至少 3 位付費用戶要求 | 成本與資安 review 通過 | 產品 |
-| P2 | 有新市場證據 | 獨立 discovery brief | 研究 |
-| Rejected | 命中 Non-Goals 或無證據 | 不得進 backlog | 全員 |
----
-## 4. 系統設計 (System Design)
-
-### 4.1 技術棧 (Tech Stack)
-
-| 層 | 技術 | 選擇理由 | 替代/退出條件 |
-|---|---|---|---|
-| 前端 | Next.js/React/TypeScript | 快速交付與可測試元件 | 需求超過 web 才評估 native |
-| 樣式 | Tailwind + accessible primitives | 一致、鍵盤可用 | 不引入大型 design system |
-| 資料 | IndexedDB 或 Postgres 依 scope | 敏感資料最小化 | 需同步才啟用雲端 |
-| AI/規則 | Provider adapter + schema validation | 可替換、可 mock | 不可接受的成本/品質即切模型 |
-| 任務 | Server action/queue | 保留 idempotency | 長任務才引入 queue |
-| 觀測 | Sentry + structured events | 追錯與衡量轉換 | 不收集不必要個資 |
-| 部署 | Vercel + managed DB（v2） | 單人維運低負擔 | 成本超過 MRR 20% 需檢討 |
-
-### 4.2 系統架構圖 (Mermaid)
-
-```mermaid
-flowchart TB
-  UI[Browser UI] --> V[Validation + consent]
-  V --> Store[(Local/Server Store)]
-  V --> Orchestrator[Job Orchestrator]
-  Orchestrator --> Adapter[Provider Adapter or Mock]
-  Adapter --> Guard[Safety + schema guard]
-  Guard --> Draft[Draft/Artifact]
-  Draft --> Approval[Human approval]
-  Approval --> Export[Export/next action]
-  Store --> Audit[Audit + metrics]
-  Adapter -. failure .-> Fallback[Deterministic fallback]
-```
-
-架構邊界：MVP 不把外部 connector、付款、多人權限放進核心 request path。
-### 4.3 資料模型 (Prisma / localStorage schema)
-
-```prisma
-model Salonworkspace {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Customer {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Consent {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Servicevisit {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Treatmentphoto {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Preference {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Returnrule {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Followupdraft {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Followupevent {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Staffmember {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-model Cohortreport {
-  id        String   @id @default(cuid())
-  ownerId   String?
-  status    String   @default("active")
-  payload   Json
-  version   Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([ownerId, createdAt])
-}
-
-```
-
-資料模型規則：payload 只存完成 job 必需欄位；敏感欄位以 Web Crypto/managed encryption 處理；刪除必須有 tombstone 或可驗證的清除結果。
-### 4.4 API 規格 (REST endpoints)
-
-| Method | Path | Auth | 用途 | 錯誤/重試 |
-|---|---|---|---|---|
-| POST | /api/customers | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| POST | /api/visits | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| GET | /api/followups | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| POST | /api/followups/:id/draft | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| POST | /api/followups/:id/approve | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| POST | /api/consents/revoke | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| POST | /api/export/encrypted | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-| GET | /api/reports/retention | session/optional | 核心資料操作 | Zod 400；5xx exponential backoff |
-
-### 4.5 事件與資料生命週期
-
-- `session_started`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
-- `input_validated`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
-- `draft_created`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
-- `human_reviewed`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
-- `artifact_exported`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
-- `run_failed`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
-- `data_deleted`：只記錄必要 metadata；禁止把完整敏感內容寫入 analytics。
----
-## 5. 非功能性需求 (Non-Functional Requirements)
-
-### 5.1 性能指標
-
-| 指標 | MVP 目標 | 量測方式 | 告警 |
-|---|---|---|---|
-| First contentful paint | ≤2.5s mobile | Lighthouse/field | P95 >3s |
-| 核心互動 | ≤500ms local | Performance API | P95 >800ms |
-| 生成/分析 | 依任務 ≤30s | server trace | P95 >45s |
-| 匯出 | ≤5s / 500 records | E2E | 失敗率 >2% |
-| 搜尋 | ≤500ms / 1k items | unit + browser | P95 >1s |
-| 可用性 | 99% pilot window | synthetic | 連續 3 次失敗 |
-
-### 5.2 安全與隱私
-
-- 資料最小化：不因方便而收集完整第三方個資。
-- 所有輸入在送出前顯示目的、保存期限與是否可撤回。
-- 認證/授權以 ownerId、workspaceId 與 server-side check 為準。
-- 匯出檔包含版本與警告，不把 secret、token 或原始音/影像混入。
-- 刪除請求可由使用者觸發，備份清除期限需寫在產品政策。
-- 敏感事件進 audit，但 analytics 只保留 hash/id 與量化欄位。
-- 公開分享預設關閉；啟用時產生不可猜 token 並可撤銷。
-- 所有外部 webhook 驗證簽章與重放保護。
-
-### 5.3 ⭐ 降級機制 (Graceful Degradation)
-
-| 服務 | 情境 (掛掉) | 降級策略 (切換) | 使用者訊息 |
-|---|---|---|---|
-| LLM provider | timeout/5xx (掛掉) | 切換到 mock/template | 草稿保留，可稍後重試 |
-| 資料庫 | connection error (掛掉) | 切換到 local queue | 暫存位置與同步狀態 |
-| 圖片儲存 | size/type error (掛掉) | 切換到 文字欄位 | 指出失敗檔案 |
-| Auth | expired session | 重新登入 | 不丟失未送出表單 |
-| 付款 | webhook mismatch | pending entitlement | 人工客服入口 |
-| 排程 | missed heartbeat | 手動 queue | 顯示延遲時間 |
-
-### 5.4 擴展性
-
-- 核心 job 以 provider-neutral input/output contract 隔離。
-- 所有長任務可恢復、重試、取消且 idempotent。
-- 資料表以 owner/createdAt 索引；先量測再分區。
-- P1 connector 為 adapter，不得讓外部平台 schema 污染 domain model。
-- 成本、錯誤、延遲均按 workspace 追蹤，支援方案限額。
----
-## 6. 完成標準 (Definition of Done)
-
-### 6.1 v1 MVP DoD
-
-- [ ] 本文件 §1–§13、§15 皆可對應 issue 與驗收案例。
-- [ ] 所有 P0 功能至少有單元測試、錯誤測試與一條 E2E happy path。
-- [ ] sweet spot 核心 job 可由 5 位外部 pilot 從空白完成到交付。
-- [ ] 所有敏感資料有刪除、匯出與權限測試。
-- [ ] 降級路徑能在 provider 失敗時保留輸入並給出可行下一步。
-- [ ] Mobile 390px、tablet 768px、desktop 1440px 皆可完成主流程。
-- [ ] Lighthouse accessibility ≥90；鍵盤、焦點與空狀態通過檢查。
-- [ ] 成本、事件、版本、決策可由 maintainer 追查。
-- [ ] 沒有以 mock 結果冒充真實市場或模型品質。
-- [ ] 若本案 sweet=2/3，未達 §11 go/no-go 不得進入完整 v2。
-
-### 6.2 上線閘門
-
-- [ ] Privacy/Terms/Contact 頁面與資料刪除說明。
-- [ ] 監控告警與 rollback runbook。
-- [ ] 10 條 AC 在 CI 全綠。
-- [ ] 5 位 pilot 明確同意回饋資料用途。
-- [ ] Owner 簽署「不把 sweet spot 假設當成事實」。
----
-## 7. 風險與決策
-
-### 7.1 風險表
-
-| 風險 | 等級 | 早期訊號 | 緩解 | 停止/轉向 |
-|---|---|---|---|---|
-| Dolyu/Folio 已具在地品牌與流程 | 🔴 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-| 客戶個資與照片高度敏感 | 🟠 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-| 回流提升難以排除季節/技師差異 | 🟡 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-| 設計師不願每次服務後輸入資料 | 🔴 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-| LINE 官方政策與訊息費用變動 | 🟠 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-| 自動提醒造成騷擾與退訂 | 🟡 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-| 多店需求拉高支援與權限複雜度 | 🔴 | 訪談或監控出現反覆抱怨 | 限制 scope、人工核准、資料刪除與 fallback | 兩個 sprint 未改善即重新 discovery |
-
-### 7.2 ⭐ ADR (Architecture Decision Records)
-
-本節明確記錄 sweet=6 的取捨：競品 Dolyu、Folio、Fresha、JustBook 已在原紅海取得優勢，因此每個決策都必須服務於「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」。
-#### ADR-001
-**Decision**：ADR-001：療程回流 CRM 而非預約系統；sweet=6 的明確 gap 是回流，不是排程。
-**Context**：sweet spot 5 問體檢顯示，追求更寬功能會增加成本而不增加證據。
-**Trade-off**：短期可展示功能較少，但能測到真實 job、信任與回購。
-**Reversal trigger**：若指定指標未達標，回到 discovery；若達標才允許擴充。
-
-#### ADR-002
-**Decision**：ADR-002：草稿→人工核准→發送；保護品牌語氣與同意狀態。
-**Context**：sweet spot 5 問體檢顯示，追求更寬功能會增加成本而不增加證據。
-**Trade-off**：短期可展示功能較少，但能測到真實 job、信任與回購。
-**Reversal trigger**：若指定指標未達標，回到 discovery；若達標才允許擴充。
-
-#### ADR-003
-**Decision**：ADR-003：v1 單店單裝置加密，先測輸入習慣再做雲端協作。
-**Context**：sweet spot 5 問體檢顯示，追求更寬功能會增加成本而不增加證據。
-**Trade-off**：短期可展示功能較少，但能測到真實 job、信任與回購。
-**Reversal trigger**：若指定指標未達標，回到 discovery；若達標才允許擴充。
-
-#### ADR-004
-**Decision**：ADR-004：以回訪完成率與輸入完成率為核心 KPI，不以客戶總數或預約量冒充價值。
-**Context**：sweet spot 5 問體檢顯示，追求更寬功能會增加成本而不增加證據。
-**Trade-off**：短期可展示功能較少，但能測到真實 job、信任與回購。
-**Reversal trigger**：若指定指標未達標，回到 discovery；若達標才允許擴充。
-
-#### ADR-005：可追蹤的驗證優先
-**Decision**：所有核心操作產生可匿名化的 event 與版本。
-**Reason**：沒有事件就無法區分「覺得有趣」和「真的採用」。
-**Consequence**：多一點資料設計成本，換取可做 go/no-go 的證據。
----
-## 8. 里程碑與 Sprint 拆解
-
-### 8.1 里程碑總覽
-
-| 里程碑 | 期間 | 交付 | 出口條件 |
-|---|---|---|---|
-| M0 Discovery | 第 1 週 | 15 訪談、問題卡、競品 recheck | 5 個明確相同 job |
-| M1 Prototype | 第 2 週 | 單一核心 job 可跑 | 3 位外部使用者完成 |
-| M2 MVP | 第 3–4 週 | P0 + AC + fallback | 5 位 pilot 重做 |
-| M3 Paid/partner test | 第 5–6 週 | 價格、landing、報表 | 達到 §11 門檻 |
-| M4 Decision | 第 7 週 | go/pivot/hold memo | 不得以 sunk cost 決策 |
-
-### 8.2 Sprint 拆解
-
-- Day 1：確認 primary job、邀請訪談與資料同意。
-- Day 2：整理競品、反需求與最小資料 schema。
-- Day 3：完成單一路徑 wireframe 與 empty state。
-- Day 4：建立 domain model、validation 與事件。
-- Day 5：完成第一個可重做的 job。
-- Day 6：加入人工檢查、版本與匯出。
-- Day 7：邀請 3 位外部 pilot，記錄阻塞。
-- Day 8：修正 onboarding 與錯誤訊息。
-- Day 9：加入第二種真實輸入格式。
-- Day 10：測試 provider failure 與本地 fallback。
-- Day 11：完成權限、刪除、匯出與 privacy flow。
-- Day 12：加入核心 KPI 與成本儀表板。
-- Day 13：執行 5 位 pilot，逐一觀察。
-- Day 14：完成 landing page、community post 與價格訪談。
-- Day 15：整理結果、決定是否進入 paid pilot。
-
-### 8.3 變更控制
-
-- P0 變更需記錄影響的假設、成本與 AC。
-- 新 connector 不能取代核心 job 的測試。
-- sweet=2/3 的 v2 需求若無訪談證據，標為 parking lot。
----
-## 9. 變現路徑 + 定價心理學
-
-### 9.1 變現方案
-
-| 方案 | 價格 | 限制/價值 | 觸發升級 |
-|---|---|---|---|
-| 免費：50 位客戶、30 次服務、回訪清單 | 見產品頁 | 以本案核心 job、匯出、協作或報表分層 | 完成兩次核心 job 後詢問，而非首次強 paywall |
-| 設計師：NT$299/月，300 位客戶、草稿與報表 | 見產品頁 | 以本案核心 job、匯出、協作或報表分層 | 完成兩次核心 job 後詢問，而非首次強 paywall |
-| 工作室：NT$799/月，5 位成員、LINE adapter beta | 見產品頁 | 以本案核心 job、匯出、協作或報表分層 | 完成兩次核心 job 後詢問，而非首次強 paywall |
-| 品牌：NT$2,499/月，需訪談後再開放 | 見產品頁 | 以本案核心 job、匯出、協作或報表分層 | 完成兩次核心 job 後詢問，而非首次強 paywall |
-
-### 9.2 定價心理學
-
-- 先賣結果/回流/風險降低，不賣 AI 次數。
-- 免費層保留資料可攜，避免使用者因恐懼而註冊。
-- 首個付費價格以訪談的替代成本校正，不從競品標價倒推。
-- 年繳只在月繳有 3 個月留存證據後推出。
-- 每一次升級 CTA 顯示「多得到什麼」，不誇大節省。
-- 若 sweet score 低，採 paid pilot/一次性資料包，避免過早承諾 SaaS MRR。
-
-### 9.3 Unit economics 假設
-
-| 項目 | 初始假設 | 需要驗證 |
+| 競品 | 類型（待確認） | 本產品差異假設 |
 |---|---|---|
-| ARPA | 依本案 prices | 付款訪談/checkout |
-| CAC | 社群與轉介低成本 | 每通路追蹤 |
-| LTV | 只以已觀察留存計算 | D30/D90 |
-| Gross margin | 扣除 provider/儲存/人工 review | 每 job 成本 |
-| Payback | ≤3 個月 | cohort report |
+| Dolyu | 美業預約／管理 | 不做預約，專注回訪與客戶記憶 |
+| Folio | 美業預約／管理 | 同上 |
+| Fresha | 國際預約／POS 平台 | 同上；在地化 LINE 與台灣個資法 |
+| JustBook | 預約工具 | 同上 |
+| StyleSeat、Booksy | 國際預約平台 | 台灣小店是否使用待確認 |
+| 一般 LINE 官方帳號 + 試算表 | 現況替代方案 | 自動算回訪日、過敏提醒、同意閘門 |
+
+差異化（待試用驗證）：
+
+1. 回訪週期與「待聯絡」清單是首頁，而非預約日曆。
+2. 過敏／禁忌在新增服務時主動衝突提醒（`hasAllergyConflict`）。
+3. 行銷同意與敏感個資同意分開管理，未同意者不出現發送動作。
+4. 設計師核准制 LINE 提醒，不做群發轟炸。
+
+市場規模、競品價格：**待確認**（無可靠出處，不填數字）。
+
 ---
-## 10. 附錄 (Appendix)
 
-### 10.1 競品分析 (Competitive Quadrant Chart)
+## 3. 現況盤點（以程式為準）
 
-| 競品 | 已經做得好 | 本案不追趕的地方 | 可切入缺口 |
-|---|---|---|---|
-| Dolyu | 規模/習慣/通用功能 | 紅海主功能 | 本案 wedge |
-| Folio | 規模/習慣/通用功能 | 紅海主功能 | 本案 wedge |
-| Fresha | 規模/習慣/通用功能 | 紅海主功能 | 本案 wedge |
-| JustBook | 規模/習慣/通用功能 | 紅海主功能 | 本案 wedge |
-| 本專案 | 不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。 | 不承諾全市場 | 需用 §11 證明 |
+### 3.1 主 repo `beauty-crm`
 
-```mermaid
-quadrantChart
-    title "Sweet-spot positioning"
-    x-axis "低聚焦" --> "高聚焦"
-    y-axis "低可驗證" --> "高可驗證"
-    quadrant-1 "可驗證 wedge"
-    quadrant-2 "成熟替代"
-    quadrant-3 "泛功能紅海"
-    quadrant-4 "昂貴複雜"
-    "Dolyu": [0.15, 0.25]
-    "Folio": [0.27, 0.33]
-    "Fresha": [0.39, 0.41]
-    "JustBook": [0.51, 0.49]
-    "本專案": [0.85, 0.85]
-```
+- 技術棧：Next.js 16.2.10（`package.json` 寫 `"next": "latest"`，實際安裝版本會漂移）、React 19、TypeScript strict、Vitest 2.1、ESLint 9 flat config。純前端，無後端、無 DB、無 API route。
+- 入口：`src/app/page.tsx` → `src/components/Dashboard.tsx`（「今日工作台」）。側欄其他分頁（客戶／回訪／洞察／設定）點擊只跳 toast「頁面預覽中」，**未實作內容**。
+- `src/components/workbench/*`（另一套工作台、含 Funnel 回流漏斗）**沒有被任何頁面引用**，只有 `seed.ts` 被測試引用，屬未接線程式。
+- Domain（`src/lib/`，皆為純函式且有測試）：
 
-圖表不是市場事實，只是定位假說；數字須由 §11 的訪談與行為資料取代。
+| 模組 | 實際功能 |
+|---|---|
+| `customers.ts` | 建立／更新客戶、台灣手機格式驗證、搜尋、過敏成分衝突、行銷同意切換 |
+| `treatments.ts` | 療程紀錄驗證、依客戶排序、4 類預設回訪天數（美甲 28／美睫 21／皮膚 30／髮型 45） |
+| `reminders.ts` | 下次回訪日、逾期／即將到期清單（本地時區日期） |
+| `followups.ts` | 草稿 draft→approved 狀態機、同意閘門、回訪模板 |
+| `tiers.ts` | 4 級會員（一般／銀／金／黑）、升級進度、折扣 |
+| `analytics.ts` | 月營收、客戶 LTV、Top spenders |
+| `broadcast.ts` | 訊息模板變數、依同意／逾期／高消費／等級篩選、送出前再驗同意（不實際發送） |
+| `persistence.ts` | localStorage：語言、主題、最近 20 筆「新增來訪」紀錄 |
+| `export.ts` | JSON 匯出下載（未加密） |
+| `i18n.ts` | 中英文字串 |
 
-### 10.2 術語表
+- UI 實際行為：
+  - 客戶與療程資料是元件內的固定 seed（`Dashboard.tsx` `SEED_CUSTOMERS`／`SEED_TREATMENTS`），**不可新增或編輯客戶**。
+  - 「新增來訪」表單只把紀錄寫入 localStorage 的 `visitLog`，**不會**寫回療程資料，回訪清單不會因此更新。
+  - 回訪草稿可核准、複製到剪貼簿；編輯草稿不保存（`handleDraftChange` 為空）；「標記已聯絡」只顯示 toast。
+  - KPI（本月來訪 48、營收 128,500、回訪率 68% 等）與回訪節奏圖數值為**寫死的展示數字**。
+  - 未取得行銷同意的客戶，草稿動作會被 `BroadcastGuard` 隱藏。
+- 測試：12 個測試檔、77 個測試，`npm test` 全數通過（2026-11-16 本機）。
+- 未合併工作：open PR #1（`codex/beauty-crm-followups`，接線草稿狀態與客戶記憶）；未合併分支 `fix/v0.3.0-round3`（回流漏斗、audit log 等）、`fix/v0.4.0-ui-redesign`（landing／pricing、localStorage 持久層）。本 SPEC 狀態只計 `main`。
 
-- **core job**：使用者願意重複完成且可觀察的主要工作。
-- **wedge**：狹窄但可進入的差異化切口。
-- **artifact**：可交付、可匯出、帶版本的成果。
-- **human-in-the-loop**：人工在關鍵輸出前確認。
-- **fallback**：主要服務失敗時仍可完成的替代路徑。
-- **pilot**：有期限、有明確任務與成功條件的外部試用。
-- **D7/D30**：第 7/30 天再次使用的留存指標。
-- **ARPA**：每個付費帳戶平均收入。
-- **RLS**：資料列層級權限控制。
-- **idempotency**：同一請求重送不造成重複副作用。
-- **canon/source**：可追溯的原始資料/來源標記。
-- **ROI**：投入時間或成本與可觀察產出的比較，不等於保證收益。
+### 3.2 併入 repo `beauty-crm-concierge`
 
-### 10.3 參考資料與 re-check 記錄
+- 技術棧：Next.js 14.2.15（npm 安裝時警告此版本有安全漏洞）、React 18、Tailwind 3、Framer Motion、lucide-react。無測試、無 test script。`npm run build` 本機可通過。
+- 定位：**會員（終端客戶）端**的高端美容會員 App，與主 repo 的「設計師工作台」視角不同。
+- 實際功能（全部讀 `data/mock.ts` 單一會員假資料，無寫入、無持久化）：
 
-- Fresha 官方首頁在本次 quick check HTTP 200，確認全球預約/美業平台仍活躍，支持不做預約的 ADR。
-- 原分析明確寫出「需切療程回流 CRM 才甜蜜」；因此 §3.1 不把預約、金流、庫存列入 MVP。
-- Dolyu/Folio 已成熟是競爭警示；本版用可追蹤回訪事件與人工核准訊息做可量化差異。
-- 競品官方/公開入口以 URL 與檢查日期記錄；HTTP 403 只代表本次抓取受限，不代表下線。
-- 不使用無法核驗的下載量、使用者數或收入作為 acceptance criteria。
+| 頁面／元件 | 實際狀態 |
+|---|---|
+| `/` 會員首頁 | 下次預約卡、會員方案（套票）進度、效果時序牆、下次推薦療程、專屬顧問卡 |
+| `/booking` | 月曆／清單檢視預約紀錄；4 步驟新增預約（療程→顧問→時段→確認），「確認預約」只關閉視窗，**不儲存** |
+| `/effect-records` | Before/After 比對、4 項膚況指標 SVG 雷達圖、改善幅度計算；照片為遠端 Unsplash 圖庫圖 |
+| `/plans`、`/follow-up`、`/diary`、`/notifications`、`/profile` | **佔位頁**（「PHASE 2 — 敬請期待」） |
+| `lib/utils.ts` | `cn`、`formatDate`、`greetingByHour` |
 
-### 10.4 Error Code 統一字典
+- 資料模型（`data/mock.ts`）：`Member`、`Appointment`（含 status upcoming/completed/cancelled、store、room、consultantId）、`Treatment`（品項目錄：名稱、分類、時長、價格）、`Plan`（套票：總堂數、已用、期間、剩餘價值）、`EffectRecord`（before/after、膚況 4 指標）、`Consultant`（顧問）。
+- 無同意、過敏、敏感個資處理。
 
-| Code | HTTP | 訊息 | 處置 |
-|---|---|---|---|
-| INPUT_INVALID | 400 | 輸入格式不完整 | 指出欄位 |
-| CONSENT_REQUIRED | 403 | 需要同意才可繼續 | 顯示用途 |
-| NOT_FOUND | 404 | 資料不存在 | 回到列表 |
-| QUOTA_EXCEEDED | 429 | 已達方案額度 | 匯出/升級 |
-| PROVIDER_TIMEOUT | 504 | 外部服務逾時 | 保存草稿重試 |
-| PROVIDER_FAILED | 502 | 外部服務失敗 | fallback/manual |
-| LOW_CONFIDENCE | 422 | 需要人工確認 | 阻擋自動交付 |
-| DUPLICATE_REQUEST | 409 | 請求已處理 | 回傳既有結果 |
-| FORBIDDEN | 403 | 無權限 | 不洩漏資料 |
-| EXPORT_FAILED | 500 | 匯出失敗 | 重試與客服 |
-| DELETE_FAILED | 500 | 刪除未完成 | 顯示 pending |
-| INTERNAL_ERROR | 500 | 系統錯誤 | trace id |
-
-### 10.5 可攜與可存取性檢查表
-
-- 所有核心內容可用鍵盤到達。
-- 圖表有文字摘要與表格 fallback。
-- 錯誤不只用顏色表達。
-- CSV/JSON/Markdown 匯出有 schema version。
-- 行動版不要求拖曳或 hover 才能完成。
-- 語音/圖片功能都有文字替代。
-- 使用者可取消長任務與清除草稿。
 ---
-## 11. 市場驗證計畫 (Market Validation Plan) (Market Validation Plan)
 
-本計畫由 sweet=6 與競品 Dolyu、Folio、Fresha、JustBook 反推；目的不是證明產品存在，而是證明指定 wedge「不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。」能產生重複行為與付款。
-### 11.1 驗證前 3 個關鍵問題
+## 4. 功能需求（FR）
 
-1. **誰在最近 30 天真的遇到這個 job，且目前用什麼替代？**
-   - 證據：預約功能是紅海，Dolyu/Folio 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
-   - 通過：在 5 位 pilot 中至少 3 位給出具體最近案例。
-2. **使用者願意提供哪些最小資料，完成一次 job 後是否重做？**
-   - 證據：預約功能是紅海，Dolyu/Folio 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
-   - 通過：在 5 位 pilot 中至少 3 位給出具體最近案例。
-3. **哪個結果/回流/風險指標足以讓他付款，而不是只說有興趣？**
-   - 證據：預約功能是紅海，Dolyu/Folio 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
-   - 通過：在 5 位 pilot 中至少 3 位給出具體最近案例。
+狀態以 `main` 實際程式為準。「所在 repo」：CRM = `beauty-crm`，CON = `beauty-crm-concierge`。
 
-### 11.2 訪談 SOP（5 個具體訪談目標）
+| ID | 需求 | 優先 | 狀態 | 所在 repo | 現況說明 | 里程碑 |
+|---|---|---|---|---|---|---|
+| FR-001 | 客戶檔案：聯絡、偏好、過敏／禁忌、標籤 | P0 | 部分 | CRM | domain 與測試完整；UI 無新增／編輯客戶 | M1 |
+| FR-002 | 療程（服務）紀錄 | P0 | 部分 | CRM | domain 完整；UI 新增只寫 `visitLog`，未回寫療程 | M1 |
+| FR-003 | 服務週期模板（4 類，可調整） | P0 | 部分 | CRM | 4 類固定天數；店家不可調整 | M1 |
+| FR-004 | 下次回訪日與待聯絡清單（篩選、搜尋、逾期排序） | P0 | 已實作 | CRM | `reminders.ts` + `RecallQueue` | — |
+| FR-005 | 回訪草稿須設計師核准，不自動發送 | P0 | 部分 | CRM | 狀態機與核准／複製已實作；草稿編輯不保存、「已聯絡」未記錄（PR #1 處理中） | M1 |
+| FR-006 | 會員等級／VIP 可解釋計算 | P1 | 部分 | CRM | `tiers.ts` 完整；UI VIP 判斷寫死 LTV ≥ 20,000 | M2 |
+| FR-007 | Before/After 效果紀錄（含照片同意） | P1 | 部分 | CON | CON 有比對 UI 與指標計算；無同意、無上傳，照片為遠端圖庫 | M1（資料模型與比對邏輯）／M2（照片） |
+| FR-008 | 回流漏斗：應回訪→已聯絡→已預約 | P0 | 部分 | CRM | `workbench/Funnel.tsx` 存在但未接線；主入口無 | M1 |
+| FR-009 | 資料匯出與刪除 | P0 | 部分 | CRM | JSON 匯出已實作（未加密）；無刪除 | M1（刪除）／M2（加密匯出） |
+| FR-010 | 手機快速新增服務紀錄 | P0 | 部分 | CRM | 表單、手機底部導覽、`N` 快捷鍵已實作；寫入問題同 FR-002 | M1 |
+| FR-011 | 行銷同意與送出前再驗 | P0 | 已實作 | CRM | `broadcast.ts`、`followups.ts`、`BroadcastGuard` | — |
+| FR-012 | 敏感個資（過敏／健康）同意、遮罩、最小化 | P0 | 未實作 | — | 目前只有「行銷同意」，過敏資料明文顯示 | M1 |
+| FR-013 | LINE 回訪提醒整合 | P0 | 未實作 | — | 只有 channel 字串與複製草稿；無 LINE adapter | M1（dry-run）／M2（測試頻道）／M3（正式） |
+| FR-014 | 多店與帳號權限（店主／店長／設計師） | P0 | 未實作 | — | `WorkspaceSwitcher` 只顯示店名；療程僅有 `designerId` 欄位 | M1（模型與權限檢查）／M2（真實登入） |
+| FR-015 | 計費與方案限制 | P0 | 未實作 | — | 無 | M2（金流測試模式）／M3（正式） |
+| FR-016 | 套票（療程方案）剩餘堂數與期限 | P1 | 部分 | CON | CON 有展示 UI 與資料模型；CRM 無 | M1 |
+| FR-017 | 下次預約紀錄（只記錄，不做排程系統） | P1 | 部分 | CON | CON 有預約資料模型與清單；新增流程不儲存 | M1 |
+| FR-018 | 設計師／顧問檔案 | P1 | 部分 | CON | CON 有顧問模型與卡片；CRM 只有 `designerId` | M1（併入帳號模型） |
+| FR-019 | 營運分析（月營收、LTV、回訪率） | P1 | 部分 | CRM | domain 完整；UI KPI 為寫死展示數字 | M2 |
+| FR-020 | 中英雙語、深淺色主題 | P2 | 已實作 | CRM | `i18n.ts`、`persistence.ts` | — |
+| FR-021 | 試用店家匯入既有客戶（CSV） | P1 | 未實作 | — | 無 | M2 |
+| FR-022 | 會員自助入口（客戶端 App） | P2 | 部分 | CON | CON 會員端頁面，資料全為 mock | M3 之後再評估 |
+| FR-023 | 稽核紀錄（同意變更、匯出、刪除） | P1 | 未實作 | — | 僅未合併分支有雛形 | M2 |
 
-**Target 1：6 位美甲/美睫個人工作室**
-- 先問最近一次事件，不先展示功能。
-- 記錄目前工具、步驟、耗時、錯誤與替代成本。
-- 展示一個 5 分鐘 prototype，觀察是否主動完成下一步。
-- 結束只問 willingness-to-pay 與願不願提供資料，不引導答案。
+### 4.1 P0 驗收重點（沿用 v3.0 AC 精神，改寫為可驗證）
 
-**Target 2：4 位皮膚管理或療程工作室**
-- 先問最近一次事件，不先展示功能。
-- 記錄目前工具、步驟、耗時、錯誤與替代成本。
-- 展示一個 5 分鐘 prototype，觀察是否主動完成下一步。
-- 結束只問 willingness-to-pay 與願不願提供資料，不引導答案。
+- 新增客戶可記錄偏好、過敏與兩種同意（行銷／敏感個資）。
+- 新增服務後自動計算下一次回訪日，並出現在待聯絡清單。
+- 含過敏衝突的服務在儲存前顯示醒目確認。
+- 回訪清單可依逾期天數排序（已實作）。
+- 對客訊息必須由設計師核准；未同意者不出現發送動作。
+- 撤回行銷同意後，不再出現在推播／提醒發送清單（`buildBroadcast` 已實作；待聯絡清單本身仍會列出，但不顯示發送動作）。
+- 店主可自行匯出與刪除單一客戶全部資料。
 
-**Target 3：3 位美髮設計師**
-- 先問最近一次事件，不先展示功能。
-- 記錄目前工具、步驟、耗時、錯誤與替代成本。
-- 展示一個 5 分鐘 prototype，觀察是否主動完成下一步。
-- 結束只問 willingness-to-pay 與願不願提供資料，不引導答案。
-
-**Target 4：4 位 Dolyu/Folio 使用者**
-- 先問最近一次事件，不先展示功能。
-- 記錄目前工具、步驟、耗時、錯誤與替代成本。
-- 展示一個 5 分鐘 prototype，觀察是否主動完成下一步。
-- 結束只問 willingness-to-pay 與願不願提供資料，不引導答案。
-
-**Target 5：3 位回訪率低於 40% 的店主**
-- 先問最近一次事件，不先展示功能。
-- 記錄目前工具、步驟、耗時、錯誤與替代成本。
-- 展示一個 5 分鐘 prototype，觀察是否主動完成下一步。
-- 結束只問 willingness-to-pay 與願不願提供資料，不引導答案。
-
-**訪談記錄格式**：日期、角色、最近事件、原流程分鐘數、替代工具、prototype 行為、反對理由、付款訊號、是否同意 follow-up。
-
-### 11.3 Community post topic
-
-- 主題：在美業社群發文：「客人做完療程後，你通常在第幾天想起要聯絡？哪一個紀錄最常遺失？」
-- 先發問題與匿名結果，不把 landing page 寫成廣告。
-- 成功：至少 20 個有情境回覆、5 人願意進 pilot、反對理由可分類。
-
-### 11.4 Landing page test
-
-- 測試：A/B：預約管理 vs 療程回流；CTA 為匯入 20 筆匿名服務並產生回訪清單，追蹤完成率。
-- 版本 A：競品/現有習慣的語言；版本 B：sweet spot wedge 的語言。
-- 事件：view → start → import → first outcome → second outcome → pricing intent。
-- 成功：至少 50 個有意圖訪客；first outcome ≥35%；second outcome ≥25%；≥5 人願付或留下高品質需求。
-
-### 11.5 落地指標與 go/no-go
-
-| 指標 | Go | Pivot | No-go |
-|---|---|---|---|
-| 核心 job 完成 | ≥60% | 35–59% | <35% |
-| 第二次使用 | ≥35% | 20–34% | <20% |
-| 付費意願 | ≥20% 明確願付 | 10–19% | <10% |
-| 資料同意 | ≥80% | 60–79% | <60% |
-| 錯誤/人工修正 | 可控且下降 | 固定問題 | 造成風險 |
-- **甜蜜點低分規則**：sweet=6 的專案在 No-go 任一項連續兩週成立，標記為 hold/開源，而不是繼續追加功能。
 ---
-## 12. 失敗模式 SOP (Failure Mode Playbook) (Failure Mode Playbook)
 
-### 12.1 核心輸入不完整
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
+## 5. 非功能需求
 
-### 12.2 主要 provider 失敗
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.3 結果品質不足
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.4 使用者拒絕採用
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.5 資料/個資事件
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.6 成本超支
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.7 競品推出相同 wedge
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.8 轉換率低於假設
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.9 pilot 招募不足
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.10 維運超過一人能力
-**症狀**：監控或訪談出現異常。
-**立即處置**：停止自動化副作用，保留輸入/事件，通知 owner。
-**使用者溝通**：用具體狀態、替代路徑與預計更新時間，不隱瞞。
-**恢復**：依 §5.3 fallback，完成重試/回滾/資料清除。
-**Post-mortem**：記錄觸發、影響、根因、修復與是否修改 Non-Goals。
-
-### 12.11 甜蜜點驗證失敗
-**觸發**：§11 的 go/no-go 未達標。
-**處置**：凍結新功能，完成 5 次反需求訪談；將結果寫入 pivot/hold memo。
-**禁止**：不得用新增競品功能、放寬指標或虛增市場規模掩蓋失敗。
----
-## 13. ⭐ MetaGPT / spec-kit 對齊
-
-### 13.1 MUST / SHOULD / MAY
-
-**MUST（P0）**
-- MUST-01 客戶檔案：聯絡方式、偏好、禁忌與同意狀態
-- MUST-02 療程紀錄：項目、日期、產品、照片與設計師備註
-- MUST-03 服務週期模板：美甲/美睫/護膚/髮型可調
-- MUST-04 下一次回訪日期與「待聯絡」清單
-- MUST-05 設計師手動核准的 LINE/簡訊草稿，不直接自動發送
-- MUST-06 客戶標籤與 VIP 依回訪/消費可解釋計算
-- MUST-07 Before/After 照片壓縮與明確同意紀錄
-- MUST-08 回流漏斗：應回訪、已聯絡、已預約（手動標記）
-- MUST-09 本地加密匯出、資料刪除與裝置警告
-- MUST-10 手機單手快速新增服務紀錄
-
-**SHOULD（P1）**
-- SHOULD-01 LINE 官方帳號單向提醒
-- SHOULD-02 多設計師同店 workspace
-- SHOULD-03 生日/療程週期 campaign
-- SHOULD-04 月度回流報表與 cohort
-- SHOULD-05 跨裝置加密同步
-- SHOULD-06 從預約工具匯入服務完成事件
-
-**MAY（P2）**
-- MAY-01 多店與品牌治理
-- MAY-02 客戶自助偏好表單
-- MAY-03 POS/預約雙向整合
-- MAY-04 匿名化療程基準
-
-### 13.2 P0 / P1 / P2 優先級
-
-| 優先級 | 規則 | 本案內容 | 驗證 |
-|---|---|---|---|
-| P0 | 不可省略 | 核心 job 與資料安全 | §3 AC |
-| P1 | 有證據才做 | v2 adapter/協作 | §11 行為 |
-| P2 | 探索性 | v3 生態 | 新 discovery |
-
-### 13.3 Competitive Quadrant
-
-- 圖表見 §10.1。定位數字是假說，必須由 pilot 行為更新。
-
-### 13.4 Open Questions
-
-- Q：核心 job 是否頻率足夠？ Owner：CPO；回答期限：M1/M2。
-- Q：使用者是否願意提供真實資料？ Owner：CPO；回答期限：M1/M2。
-- Q：人工檢查是否為信任加分而非負擔？ Owner：CPO；回答期限：M1/M2。
-- Q：單人團隊能否支援必要整合？ Owner：CPO；回答期限：M1/M2。
-- Q：競品下一版會否消除 wedge？ Owner：CPO；回答期限：M1/M2。
-- Q：何時可由 local 轉 cloud？ Owner：CPO；回答期限：M1/M2。
-
-### 13.5 Requirement Pool
-
-- REQ-POOL-001：LINE 官方帳號單向提醒
-- REQ-POOL-002：多設計師同店 workspace
-- REQ-POOL-003：生日/療程週期 campaign
-- REQ-POOL-004：月度回流報表與 cohort
-- REQ-POOL-005：跨裝置加密同步
-- REQ-POOL-006：從預約工具匯入服務完成事件
-- REQ-POOL-007：多店與品牌治理
-- REQ-POOL-008：客戶自助偏好表單
-- REQ-POOL-009：POS/預約雙向整合
-- REQ-POOL-010：匿名化療程基準
-- REQ-POOL-011：匿名基準資料
-- REQ-POOL-012：顧問模式
-- REQ-POOL-013：進階匯入
-- REQ-POOL-014：資料保留政策 UI
-
-### 13.6 生成式開發約束
-
-- 任何 AI coding agent 必須先讀本 SPEC，並回報對應 FR/AC。
-- 不得把 placeholder/mock 回傳標記為 production capability。
-- 每個 PR 必須附測試、資料風險與 rollback 方式。
-- 若需求違反 §1.5，必須先更新 ADR 與驗證假設。
----
-## 15. 深度市調報告 (Sweet Spot 5 問體檢結果)（Sweet Spot 5 問體檢結果）
-
-**本次結論：sweet spot score = 7.6/10；商業化分數 = 83.2/100；recommended action = GO with strict pilot gate。**
-本專案 v3.0 forced upgrade（2026-07-19，OpenClaw 12 SPEC SOP 第 3 件）將低分結果轉成「先 pilot 驗證再開發」的窄定位，並升級行動建議由 investigate → GO with strict pilot gate（因 sweet 從 6 → 7.6 突破 7 閾值）。
-
-### 15.1 五問一：誰已經解決了主要問題？
-
-- 主要競品：Dolyu、Folio、Fresha、JustBook。
-- 競品優勢不是推測，而是公開產品入口、成熟使用習慣或原分析的競品清單。
-- 本案決定不追逐其最強維度，改用 wedge：不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。
-### 15.2 五問二：使用者為何還會換？
-
-- 已知 gap：預約功能是紅海，Dolyu/Folio 已成熟；美業小店真正可切的是「療程回流 CRM」：記得客戶做過什麼、多久該回來、如何在不打擾下追蹤。
-- 可換理由必須是具體 job 的時間、錯誤、回流或合規成本；「AI 很酷」不算。
-- 研究訪談需請使用者展示最近一次原流程，禁止只做偏好問卷。
-### 15.3 五問三：甜蜜點是否比競品更窄、更可交付？
-
-- 窄定位：不和預約/POS 正面競爭，專注療程後 30–90 天的記憶、回流提醒、過敏與偏好紀錄，並以設計師能採取的下一步衡量價值。
-- MVP 僅包含：客戶檔案：聯絡方式、偏好、禁忌與同意狀態；療程紀錄：項目、日期、產品、照片與設計師備註；服務週期模板：美甲/美睫/護膚/髮型可調；下一次回訪日期與「待聯絡」清單；設計師手動核准的 LINE/簡訊草稿，不直接自動發送。
-- 排除：不做線上預約日曆與候位；不做 POS、庫存、薪資與抽成；不自動向客戶發送未核准行銷訊息；不做醫療診斷或療程效果保證。
-- 這是 sweet=6 的直接回應：分數越低，範圍越小、人工驗證越前置。
-### 15.4 五問四：誰會付費、用什麼預算？
-
-- 初始付費設計：
-  - 免費：50 位客戶、30 次服務、回訪清單
-  - 設計師：NT$299/月，300 位客戶、草稿與報表
-  - 工作室：NT$799/月，5 位成員、LINE adapter beta
-  - 品牌：NT$2,499/月，需訪談後再開放
-- 付款不是訪談口頭承諾；必須完成 checkout、訂金、採購單或明確 pilot 費用。
-- 若使用者只願意免費試用，將其標為 demand signal，不標為 revenue。
-### 15.5 五問五：兩週能否取得可反駁證據？
-
-- 可反駁假設：核心 job 會被重做、結果會被採用、使用者願提供必要資料、至少一個價格可接受。
-- 證據：M6：100 個工作室註冊、25 個 NT$299 付費（MRR NT$7,475）；M12：120 個付費與 5 個工作室方案。若回訪清單被開啟但沒有聯絡行為，改做資料輸入工具。
-- 最早失敗訊號：第二次使用、資料同意、人工修正時間或回訪事件沒有改善。
-- 反駁後處置：hold/pivot，不用 roadmap 掩蓋。
-
-### 15.6 市場與競爭重檢（2026 quick re-check）
-
-- Fresha 官方首頁在本次 quick check HTTP 200，確認全球預約/美業平台仍活躍，支持不做預約的 ADR。
-- 原分析明確寫出「需切療程回流 CRM 才甜蜜」；因此 §3.1 不把預約、金流、庫存列入 MVP。
-- Dolyu/Folio 已成熟是競爭警示；本版用可追蹤回訪事件與人工核准訊息做可量化差異。
-- 本次 re-check 只驗證公開入口可達性與原分析的競品假設，未把 HTTP status 當成營收/使用者數證據。
-- 新競爭趨勢：通用 AI 平台會持續吸收模板、OCR、摘要與自動化，因此本案護城河只能來自垂直資料流程、信任、人工驗證與可重複成果。
-
-### 15.7 可服務市場（Beachhead，而非虛大 TAM）
-
-- 目標人群：一人美甲、美睫、皮膚管理與髮型工作室，已有 LINE/IG 預約但沒有可靠服務紀錄，客戶數 50–500。
-- 市場策略：先完成 5 組指定訪談，再用行為漏斗估算可服務市場。
-- 不把全球使用者、下載量或競品估值直接乘上採用率。
-- 可觸達通路：在美業社群發文：「客人做完療程後，你通常在第幾天想起要聯絡？哪一個紀錄最常遺失？」
-
-### 15.8 收益情境與 unit economics
-
-- M6：100 個工作室註冊、25 個 NT$299 付費（MRR NT$7,475）；M12：120 個付費與 5 個工作室方案。若回訪清單被開啟但沒有聯絡行為，改做資料輸入工具。
-| 保守 | 小型 pilot | 以完成事件為主 | 未達付款不擴張 |
-| 中性 | 重複 job + 付費 | 按 §11 cohort | 達標才加 v2 |
-| 樂觀 | 合作夥伴/顧問 | 不在 MVP 承諾 | 需新合約與支援能力 |
-- 成本模型：provider/API、儲存、人工審核、客服與獲客逐項記錄；不以免費模型成本假設永遠成立。
-- 健康門檻：毛利可支撐人工、LTV/CAC 由實際 cohort 計算，不能沿用舊 PRD 的樂觀數字。
-
-### 15.9 商業化與 PRD 分數
-
-| 維度 | 初始評估 | 理由 |
+| 類別 | 需求 | 驗證方式 |
 |---|---|---|
-| 市場規模 | 依 sweet 調低 | 避免用大 TAM 掩蓋窄 wedge |
-| 差異化 | 依 §1.3 | 只承認可驗證成果 |
-| 變現 | 待 §11 | 必須有付費事件 |
-| 技術 | MVP 可行 | 不包含紅海全功能 |
-| 風險 | 依 §7 | 個資/合規/競品需明示 |
-| PRD 規格 | 9.5/10 | 14 個要求區塊、10 AC、ADR、SOP 與證據 |
-- **本次 PRD 規格分數：9.5/10（95/100 Notion scale）**。sweet=7.6 只影響商業化分數，不降低文件是否完整。
-- **v3.0 商業化公式（取代舊 0.3×PRD+0.7×sweet）**：`商業化 = 30 + sweet × 7 = 30 + 7.6 × 7 = 83.2 / 100`。
-- 商業化分數是目前體檢後的可驗證假說，不是收入保證。
+| 效能 | 500 位客戶時回訪清單計算 ≤ 200ms（本機） | Vitest 效能測試（現有 100 客戶測試 < 2 秒，需收斂） |
+| 行動裝置 | 375px 寬可單手完成新增服務 | Playwright mobile viewport（尚未配置） |
+| 可及性 | 主要互動可鍵盤操作；Lighthouse a11y ≥ 90 | Lighthouse（尚未配置） |
+| 時區 | 日期一律以 Asia/Taipei 計算，避免跨日 off-by-one | `tests/reminders.test.ts`（已有） |
+| 依賴 | Next.js 版本固定，不使用 `latest` | `package.json` 檢查 |
+| 品質閘門 | lint、typecheck、test、build、e2e 全部 exit 0 才可合併 | CI（目前 test 步驟以 `|| echo` 吞錯，需修正） |
+| 可攜 | 店家可隨時匯出全部資料 | 匯出測試 |
+| 可觀測 | M2 起記錄錯誤率與同步延遲 | 待定 |
 
-### 15.10 決策、退出與下一次 review
+---
 
-- 本版決策：GO with strict pilot gate；所有專案保留，不執行 kill。
-- 下一次 review：完成 §11 的 5 次訪談 + 5 位 pilot + landing smoke 後。
-- Go：達到 core job、二次使用、付款/合作門檻。
-- Pivot：有需求但 wedge/價格/流程一項不成立。
-- Hold：sweet<7 專案未達證據門檻，維持文件與 prototype，不追加功能。
-- Exit from productization：連續兩輪無重複行為，保留可攜資料格式與研究結論。
+## 6. 資料與個資處理
 
-### 15.11 v3.0 統一 Sweet Spot 5 問量表（forced upgrade 2026-07-19）
+### 6.1 資料分級
 
-> v3.0 SOP：所有 5 題改為 0–10 連續量表，公式 `sweet = (Q1+Q2+Q3+Q4+Q5) / 5`；`商業化 = 30 + sweet × 7`。
-> 真實分數帶小數，不取保守整數；行動建議依 sweet：≤5 = NO GO、5<sweet≤7 = INVESTIGATE、>7 = GO（with gate）。
+| 等級 | 欄位 | 處理 |
+|---|---|---|
+| S（敏感） | 過敏、禁忌、皮膚狀況、健康相關備註、Before/After 照片、膚況指標 | 需獨立「敏感個資同意」才可儲存；UI 預設遮罩；M2 起靜態加密；最小必要存取 |
+| P（一般個資） | 姓名、手機、Email、生日 | 需告知蒐集目的；依角色限制可見；可匯出與刪除 |
+| B（營運） | 療程項目、價格、日期、套票、預約 | 依店別隔離 |
+| M（設定） | 語言、主題 | 本機 localStorage |
 
-| Q | 問題 | 分 | 評分依據（evidence-led） |
+### 6.2 同意模型（目標）
+
+- `marketingConsent`：granted／pending／revoked（現有 `ConsentStatus`），控制是否可產生對客訊息。
+- `sensitiveDataConsent`：granted／pending／revoked（**新增**），控制 S 級欄位可否儲存與顯示；撤回時 S 級資料須刪除或匿名化。
+- 每次同意變更記錄時間與操作者（M2 稽核紀錄）。
+
+### 6.3 儲存與傳輸
+
+| 階段 | 儲存 | 加密 |
+|---|---|---|
+| 現況 | 客戶資料寫死在程式；`visitLog`（含客戶名、備註）明文存 localStorage | 無 |
+| M1 | localStorage，只允許假資料；新增「清除本機資料」 | 無（只用假資料，故可接受） |
+| M2 | 後端資料庫（選型待定），依 workspace/store 隔離 | 傳輸 TLS；S 級欄位欄位級加密；金鑰不入 repo |
+
+### 6.4 假資料規範
+
+- seed、測試、文件範例只使用明顯假資料：姓名加「示範」或「測試」前綴、手機號用 `0900000001` 這類明顯假號碼、Email 用 `@example.com`。
+- 不得引用真實人物照片作為 Before/After（concierge 目前用 Unsplash 人像，不搬入）。
+
+---
+
+## 7. 法規與風險
+
+| 風險 | 說明 | 對策 | 狀態 |
 |---|---|---|---|
-| Q1 | 客戶有沒有真實痛感？（美髮沙龍、美甲、紋繡、護膚等小店） | **8.5 / 10** | PTT BeautySalon 板 2026-07 仍活躍（最近發文 2026-07-15 18:30 標題「第一次知道人類來源外泌體」證實消費端持續發文，會員數 50–500 規模的工作室常見於美甲/美睫/紋繡老闆受訪）；Threads 搜尋「美業經營」2026-07 公開內容可達 200；Dcard beauty/nail/hair 板 Cloudflare 雖擋爬蟲，但社群規模公開大於 100 萬月活躍。台灣一人美業店家約 4–5 萬家，缺回流 CRM 是普遍現象，痛點真實。扣 1.5 分因未做 5 場真實訪談，僅有桌面證據。 |
-| Q2 | 替代品？（3–5 個 functional peer 200 OK 驗證） | **7.5 / 10** | 5 個 peers 全部 curl 200 OK：① Fresha https://www.fresha.com/ (全球最大美業預約) ② Dolyu https://dolyu.com/ (台灣 LINE 接單 CRM) ③ Folio https://www.foliocat.com/ (沙龍 CRM) ④ StyleSeat https://www.styleseat.com/ (北美美髮預約) ⑤ Booksy https://www.booksy.com/ (歐美預約)。**全部偏預約/POS 為主，沒有一個把「療程後 30–90 天回流 CRM」當一級導航**。扣 2.5 分因 Folio/Dolyu 部分功能可能會被加進預約模組，威脅存在。 |
-| Q3 | 付費意願？ | **6.5 / 10** | §15.4 定價：免費 / NT$299 設計師 / NT$799 工作室 / NT$2,499 品牌。台灣美業小店月營收 5–30 萬，NT$299 < 1% 營收，付費意願理論可接受。**但付款不是訪談口頭承諾；§15.4 明示必須完成 checkout/訂金/採購單才算 revenue**。扣 3.5 分因目前 0 個已驗證付費 pilot，全是 desktop 假設。 |
-| Q4 | 1 人 1 天能 MVP 嗎？ | **8.0 / 10** | 現有 §3.1 FR-001~010 scope = 客戶檔案 / 服務紀錄 / 週期模板 / 回訪清單 / LINE 草稿核准 / 標籤 / 照片壓縮 / 回流漏斗 / 加密匯出 / 手機快速新增；採用 Next.js + Prisma + IndexedDB local-first（§4.1）1 人 1 sprint 可達第一個 click-through demo。1 天 strict 不可（需 2–4 週 MVP），但 1 人可達 1–2 天 landing demo → M1 達 pilot；扣 2 分因 LINE 草稿核准的真實草稿生成需要 adapter mock。 |
-| Q5 | 為什麼是我（OpenClaw 一人公司）能做？ | **7.5 / 10** | 已有 (a) Sean PRD rewrite SOP + 12 SPEC v3.0 SOP（本檔為第 3 件，前 2 pos-multitrade/emed-glp1 已 push 成功）、(b) Hermes Agent + engineering 對接、(c) 台灣一人公司對美業小店 empathy、(d) Next.js/Prisma/IndexedDB 技術棧成熟。扣 2.5 分因無美業產業 prior 經驗，且無美業社群 KOL network，需先建立信任。 |
+| 個資法：敏感個資 | 過敏／皮膚／健康資料是否屬個資法第 6 條特種個資（醫療、健康檢查等）**待法律確認**；產品先以最高敏感等級處理 | 獨立同意、遮罩、加密、最小化、可刪除 | 待確認 |
+| 個資法：告知與同意 | 蒐集時須告知目的、類別、利用期間與方式（個資法第 8 條）；行銷利用需當事人同意或可拒絕 | 同意文案與紀錄；撤回立即生效 | 文案待撰寫 |
+| LINE 官方帳號政策與費用 | 推播則數、費用與 Messaging API 條款可能變動，**待確認** | adapter 隔離、核准制、可降級為複製草稿 | 待確認 |
+| 醫療法／醫療廣告 | Before/After 與「療效」字眼若用於醫美，可能涉及醫療廣告限制，**待法律確認** | 不服務醫美診所；效果紀錄僅內部使用、不對外宣稱 | 待確認 |
+| 競品 | 已有美業 App 競品（見 §2） | 專注回訪 wedge；試用驗證 | 進行中 |
+| 依賴安全 | 主 repo `next: latest` 版本漂移；concierge 的 Next 14.2.15 有已公告漏洞 | 固定版本；不搬 concierge 依賴 | M1 |
+| 金流 | 訂閱扣款、退款、發票（台灣電子發票）規範 | M2 只用金流商測試模式；正式上線前另行審查 | M2 |
+| 試用店家資料 | 試用即為真實個資 | 試用前須完成 M2 加密、同意書、資料處理約定 | M2 |
 
-**合計 = 8.5 + 7.5 + 6.5 + 8.0 + 7.5 = 38 / 50 → sweet = 38 ÷ 5 = 7.6 / 10**
+---
 
-**公式推導（不取保守）**：
-- `sweet = 7.6 / 10`
-- `商業化 = 30 + sweet × 7 = 30 + 7.6 × 7 = 30 + 53.2 = 83.2 / 100`
-- 行動建議：sweet = 7.6 > 7 → **GO with strict pilot gate**（不直接建 build sprint；需先 5 訪談 + 5 pilot + landing smoke）
+## 8. 里程碑
 
-**v2.2.1 → v3.0 diff**：
-- sweet 6 → 7.6（+1.6，因 Q1/Q4 真實證據補強且扣分項重新評估）
-- 行動 investigate → GO with strict pilot gate
-- 商業化 (舊公式 0.3×9.5+0.7×6)×10 = 70.5 → 83.2（新公式）
-- 量表由 binary/質性 → 0–10 連續
+| 里程碑 | 目標 | 主要內容 | 對應「上市前要補」 |
+|---|---|---|---|
+| **M1：合併與可試用骨架（本機、假資料）** | 單一 repo、資料閉環、權限與同意模型、LINE dry-run | 併入 concierge 選定模組；新增客戶／服務真正寫入並更新回訪清單；敏感個資同意與遮罩；多店與角色權限（假帳號）；LINE 提醒 dry-run adapter；品質閘門（typecheck、e2e、CI 不吞錯） | 兩個 repo 合併、LINE 提醒整合（dry-run）、多店與帳號權限（模型層） |
+| **M2：試用就緒** | 可讓 2–3 家店以真實資料安全試用 | 後端與登入、S 級欄位加密、稽核紀錄、LINE 測試頻道串接、計費（金流商測試模式）、CSV 匯入、隱私權政策與同意書、招募 2–3 家試用店 | LINE 提醒整合（測試頻道）、多店與帳號權限（真實登入）、計費（測試模式）、找 2–3 家店試用 |
+| **M3：付費上市** | 首批付費店家 | 正式金流與發票、正式 LINE 推送、方案限制、監控與客服流程、依試用回饋調整 | 計費（正式） |
 
-### 15.12 ADR（Architecture Decision Records，v3.0 補強）
+M1 詳細驗收見根目錄 `GOAL.md`。
 
-1. **ADR-01 不做預約/POS** ：預約是紅海（Fresha/Dolyu/Booksy/StyleSeat 全 200 OK 驗證活躍），做預約是拿 1 人團隊與有融資的全球平台正面對決；本檔 §3.1 FR 明確排除，§15.11 Q2 evidence 強化此 ADR。
-2. **ADR-02 本地優先（local-first）+ IndexedDB + 加密匯出** ：美業個資敏感度比餐飲 POS 更高（療程照片、過敏、同意書），本地儲存 + 顯式匯出比雲端 SaaS 更易說服小店信任；v3.0 §4.3 Prisma schema 對齊此 ADR。
-3. **ADR-03 人工核准的 LINE/SMS 草稿，不自動發送** ：這是 §1.5 Non-Goals 與 §3.1 FR-005 的核心；避免被歸類為「自動行銷簡訊」，同時把責任還給設計師。sweet Q3 6.5/10 偏低原因正是因為這個 ADR 限制了自動化營收上限，但也是信任護城河。
-4. **ADR-04 v3.0 統一公式 30 + sweet×7，不採舊 0.3×PRD+0.7×sweet** ：舊公式把 PRD 文件完整度與商業可行性綁在一起，但 PRD 寫好≠產品能賣；新公式 sweet 直接決定商業化分數，並與 5 問量表一致。OpenClaw 12 SPEC SOP 統一規則。
-5. **ADR-05 行動建議 >7 才 GO、5<≤7 INVESTIGATE、≤5 NO GO** ：sweet=7.6 屬於 GO 區但需 pilot gate；不走 investigate 的「繼續觀察」是因為 Q1/Q2 evidence 強度足以決策，但 Q3 付費意願未驗證所以加 strict gate。v3.0 對齊 SOP。
-6. **ADR-06 v3.0 forced upgrade 不重寫產品定義，只升評分量表 + 補強 ADR/驗證** ：§1–§14 結構不動，避免 scope creep；只動 §0 / §15.11 / §15.12 / §15.13。對齊 OpenClaw 12 SPEC SOP 第 3 件執行方式（前 2：pos-multitrade/emed-glp1）。
+---
 
-### 15.13 市場驗證（2026-07-19 v3.0 re-check）
+## 9. 成功指標
 
-1. **Fresha 全球龍頭驗證** ：https://www.fresha.com/ 2026-07-19 quick check HTTP 200，HTML lang="en-US" data-viewer-country="TW" 顯示台灣已是其目標市場之一；其預約模組成熟，但**未把回流 CRM 當一級導航**，驗證 wedge 存在。
-2. **Dolyu 台灣本土 CRM 驗證** ：https://dolyu.com/ HTTP 200，title="線上預約系統推薦｜LINE 自動接單 · CRM｜Dolyu 朵優"，主打 LINE 預約+CRM；**但 CRM 部分仍綁在預約流程內，沒有獨立的療程回流導航**，驗證台灣市場已被教育「美業 CRM」一詞，但功能缺口仍在。
-3. **Folio / StyleSeat / Booksy 三方驗證** ：https://www.foliocat.com/、https://www.styleseat.com/、https://www.booksy.com/ 全部 HTTP 200；前兩者以美髮/沙龍為主，後者為歐美綜合；**三者導航首頁都是「Book Now」或「Schedule」而非「Bring clients back」**，驗證回流 CRM 確為國際空隙。
-4. **PTT BeautySalon 板 2026-07 仍在發文** ：https://www.ptt.cc/bbs/BeautySalon/index.html 2026-07-19 抓到 5 個最新發文（含 2026-07-15 「人類外泌體」），證實消費端社群活躍，反推店家端有持續經營/曝光需求。
-5. **Threads 搜尋 200 但 JS-rendered** ：https://www.threads.net/search?q=美業經營 HTTP 200，但內容由 JS 渲染無法直接爬文；桌面證據可達，但需以手動驗證「美業經營」標籤活躍度；列入下次驗證 todo。
-6. **桌面證據 ≠ 真實付費** ：§15.11 Q3 = 6.5/10 因為目前 0 個已驗證付費 pilot；市場驗證強度由 desktop 證據 (Q1/Q2) 撐起，但 Q3 必須靠 5 訪談 + 5 pilot 才能升分。v3.0 strict pilot gate 由此設立。
-- **Stage 1.5 smoke test gate** (sweet<5 強制；sweet>=5 強烈建議；sweet>7 GO 仍須 strict gate): 5 訪談 → 社群 smoke → landing page smoke → 才進 build sprint。
-- **本次 rewrite 與上一版差異 (v2.2.1 → v3.0)**: §0 文件資訊表 + Sweet Spot 行動建議；§15.11 改為 v3.0 統一 0–10 量表 + 統一公式（30 + sweet×7 = 83.2）；§15.12 ADR 6 條補強；§15.13 市場驗證 6 條補強。
+| 階段 | 指標 | 門檻（內部目標，待 Sean 確認） | 量測 |
+|---|---|---|---|
+| M1 | GOAL.md 全部 AC 通過 | 100% | SOP.md 指令 exit 0 |
+| M2 | 試用店家數 | 2–3 家（Notion） | 簽署試用同意的店家數 |
+| M2 | 每店每週處理回訪清單 | ≥ 1 次／週，連續 4 週 | 產品事件紀錄 |
+| M2 | 核准後送出的回訪提醒 | 每店 ≥ 10 則／月 | LINE adapter 紀錄 |
+| M3 | 試用轉付費 | ≥ 1 家 | 金流紀錄 |
+| M3 | 回訪率變化 | 試用前後比較，基準待試用店家提供 | 店家報表 |
 
-*文件結束。本文件為 v3.0 forced upgrade，依 sweet-spot-driven rewrite + 12 SPEC SOP 第 3 件規則升級。*
+---
+
+## 10. 合併清單（beauty-crm-concierge → beauty-crm）
+
+原則：主 repo 是唯一主幹（Next 16／React 19／Vitest）；只搬「資料模型與商業邏輯」，以主 repo 既有的 CSS token 與元件風格重做 UI，不搬 Tailwind／Framer Motion 依賴；主 repo 已有的功能不重複搬。
+
+### 10.1 要搬（M1）
+
+| # | concierge 來源 | 搬到主 repo（建議位置） | 搬的內容 | 對應 FR |
+|---|---|---|---|---|
+| 1 | `data/mock.ts` `Plan`；`components/home/MemberPlanCard.tsx` | `src/lib/packages.ts` + 客戶記憶面板區塊 | 套票：總堂數、已用堂數、期間、剩餘價值、到期提醒計算；補單元測試 | FR-016 |
+| 2 | `data/mock.ts` `Appointment`；`components/home/NextAppointmentCard.tsx`；`app/booking/page.tsx` 的預約清單 | `src/lib/appointments.ts` + 客戶記憶面板「下次預約」 | 預約紀錄模型（日期、時間、狀態、店別、設計師）；「已預約」狀態餵給回流漏斗；補單元測試 | FR-017、FR-008 |
+| 3 | `data/mock.ts` `EffectRecord`；`app/effect-records/page.tsx` 的比對與改善幅度計算、`RadarChart` | `src/lib/effects.ts` + 效果比對元件 | Before/After 紀錄模型、膚況指標、改善幅度計算；照片以本機佔位圖代替；受敏感個資同意閘門控管；補單元測試 | FR-007、FR-012 |
+| 4 | `data/mock.ts` `Consultant`；`components/home/ConsultantCard.tsx` | 併入 `src/lib/accounts.ts`（設計師帳號） | 設計師檔案（名稱、職稱、專長）併入帳號／角色模型，取代單純 `designerId` | FR-018、FR-014 |
+| 5 | `data/mock.ts` `Treatment`（品項目錄：名稱、分類、時長、價格） | 擴充 `src/lib/treatments.ts` 的服務品項目錄 | 店家可維護的服務品項清單，新增服務時帶入價格與時長；分類對應既有 4 類回訪週期 | FR-002、FR-003 |
+| 6 | `app/booking/page.tsx` 的月曆格計算（`buildMonthGrid`） | 視需要放入 `src/lib/calendar.ts` | 只用於顯示「回訪日／預約日」月檢視，不做排程 | FR-004（加值） |
+
+### 10.2 不搬
+
+| concierge 項目 | 不搬原因 |
+|---|---|
+| 會員端頁面整體（會員首頁、問候語、`greetingByHour`、`MobileQuickActions`） | 視角是終端客戶，主產品是設計師工作台；會員自助入口列 FR-022（P2），M3 後再評估 |
+| 4 步驟新增預約流程（選療程→顧問→時段→確認） | 預約排程是 Non-Goal（紅海）；且目前不儲存任何資料 |
+| `/plans`、`/follow-up`、`/diary`、`/notifications`、`/profile` 佔位頁 | 只有標題與「敬請期待」，無功能 |
+| `NextRecommendedCard`（下次推薦療程） | 推薦結果寫死在頁面；AI 推薦不在範圍；主 repo 已有回訪模板與 next best actions |
+| Tailwind、Framer Motion、lucide-react、clsx、tailwind-merge、`cn()` | 主 repo 用自有 CSS token；避免引入第二套樣式系統與依賴 |
+| Next 14.2.15／React 18 設定、`next.config.js` 的 Unsplash 遠端圖片白名單 | 主 repo 已是 Next 16／React 19；不引用遠端人像圖 |
+| `data/mock.ts` 的人物資料與 Unsplash 人像照片 | 看似真實的姓名與真人照片，不符假資料規範；改用明顯假資料 |
+| `lib/utils.ts` `formatDate` | 使用 `new Date(dateStr)` 解析，時區行為與主 repo `reminders.ts` 的本地日期規則不一致；主 repo 已有日期處理 |
+| `dashboard.html` | 與主 repo `dashboard.html` 幾乎相同的靜態原型（僅標題不同） |
+| `.github/workflows/ci.yml` | 部署到 GitHub Pages 但 Next 未輸出 `dist/`，build 與 deploy 以 `continue-on-error` 掩蓋失敗 |
+| `PRD/SPEC.md`、`AGENTS.md`、`README.md` | 內容與程式不符（宣稱 localStorage 持久化、雷達圖等），已由本 SPEC 取代 |
+
+### 10.3 合併後處置
+
+- concierge repo 在 M1 合併完成並經 Sean 覆審後，由 Sean 決定是否封存（agent 不執行封存、刪除或改名）。
+
+---
+
+## 11. 技術方向
+
+| 層 | 現況 | M1 | M2（待決定） |
+|---|---|---|---|
+| 前端 | Next.js 16 App Router、React 19 | 同左；固定 Next 版本 | 同左 |
+| 資料 | 程式內 seed + localStorage | localStorage repository 介面（只存假資料） | 後端 DB（選型待定）+ 加密欄位 |
+| 通知 | 無 | LINE adapter dry-run（不打網路） | LINE Messaging API 測試頻道 |
+| 權限 | 無 | 純函式權限矩陣 + 假帳號切換 | 真實登入 + server-side 檢查 |
+| 金流 | 無 | 無 | 金流商測試模式（選型待定） |
+| 測試 | Vitest（77 tests） | + typecheck script、Playwright e2e | + integration |
+
+---
+
+## 12. README／文件與程式不一致處
+
+| 文件說法 | 實際程式 |
+|---|---|
+| 主 README：「vitest 跑 47 個測試、7 個 test file」 | 12 個測試檔、77 個測試 |
+| 主 README：seed 在 `Dashboard.tsx`、「Dashboard 5 個分頁」 | 只有「今日工作台」有內容，其餘 4 個分頁只跳 toast |
+| 主 README：「v1 不含 … localStorage 持久化列 v2」；`SECURITY_NOTES.md`：「無持久化、重新整理就清空」 | `persistence.ts` 已把語言、主題、`visitLog`（含客戶名與備註）存入 localStorage |
+| 主 README：CI 跑 lint + test + build | CI 的 lint 為 `continue-on-error`，test 為 `npm test … \|\| echo`，失敗不會擋 |
+| 主 README Stack：Next.js 16 | `package.json` 為 `"next": "latest"`，版本不固定 |
+| concierge `PRD/SPEC.md`：「localStorage 持久化」 | 程式內沒有任何 localStorage 使用 |
+| concierge README：「預約保養：4 步驟新增預約流程」 | 流程可操作但「確認預約」不儲存資料 |
+| concierge `AGENTS.md`：「`.vercel/` 已存在」 | repo 內沒有 `.vercel/`（被 `.gitignore` 排除） |
+| concierge CI：部署到 GitHub Pages | Next 未設定靜態輸出，`dist/` 不存在，部署實際無內容 |
+
+---
+
+## 13. 待 Sean 決定
+
+1. Notion「現況完成度 60」是否依本盤點下修。
+2. open PR #1（followups 接線）與未合併分支 `fix/v0.3.0-round3`、`fix/v0.4.0-ui-redesign` 要合併、挑選或關閉。
+3. 主 repo 兩套工作台（`Dashboard.tsx` 系列 vs `components/workbench/*`）保留哪一套。
+4. M1 是否需要包含「方案限制（entitlement）」純邏輯，或計費整個放 M2。
+5. M2 後端與金流商選型。
+6. 方案價格（§1.4 均為假設）。
+7. 合併完成後 concierge repo 是否封存。
+
+---
+
+## 14. 變更紀錄
+
+| 版本 | 日期 | 說明 |
+|---|---|---|
+| v4.0 | 2026-11-16 | 依實際程式重建 PRD；新增合併清單、FR 狀態對照、M1/M2/M3；對齊 Notion 商品資料庫 |
+| v3.0.2 | 2026-09-06 | 舊版（見 git 歷史） |
+| v3.0 | 2026-07-19 | 舊版（見 git 歷史） |
