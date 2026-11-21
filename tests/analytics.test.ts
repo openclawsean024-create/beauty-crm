@@ -25,6 +25,12 @@ describe('analytics — 消費分析', () => {
     expect(rev[1]).toEqual({ month: '2026-07', total: 800, count: 1 });
   });
 
+  it('AC: computeRevenueByMonth 以本地日期分月（凌晨記的服務不會算進前一個月）', () => {
+    const earlyMorning = new Date(2026, 11, 1, 0, 30).toISOString();
+    const rev = computeRevenueByMonth([recordTreatment({ ...base, id: 't1', performedAt: earlyMorning, price: 900 })]);
+    expect(rev).toEqual([{ month: '2026-12', total: 900, count: 1 }]);
+  });
+
   it('AC: computeCustomerLTV 正確累計 totalSpent + 平均客單', () => {
     const list = [
       recordTreatment({ ...base, id: 't1', price: 1200, performedAt: '2026-01-15T10:00:00Z' }),

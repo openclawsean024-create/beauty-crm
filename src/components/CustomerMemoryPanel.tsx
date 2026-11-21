@@ -168,7 +168,7 @@ export default function CustomerMemoryPanel(props: CustomerMemoryPanelProps) {
                 {t(lang, CONSENT_LABEL[sensitiveConsent])}
               </strong>
             </span>
-            {sensitiveConsent !== 'granted' ? (
+            {!sensitiveHidden && sensitiveConsent !== 'granted' ? (
               <button type="button" className="quiet" data-testid="sensitive-grant" onClick={props.onGrantSensitive}>
                 {t(lang, 'consentSetGranted')}
               </button>

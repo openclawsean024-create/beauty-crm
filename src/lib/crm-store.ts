@@ -247,7 +247,9 @@ export function updateCustomerProfile(
   if (patch.phone !== undefined && !/^09\d{8}$/.test(patch.phone)) {
     throw new CrmError('INVALID_INPUT', 'phone must be Taiwan mobile format 09xxxxxxxx');
   }
-  if (patch.ownerDesignerId !== undefined) {
+  if (patch.ownerDesignerId !== undefined && patch.ownerDesignerId !== customer.ownerDesignerId) {
+    // 負責設計師決定誰能看 S 級欄位，改負責人需要 S 級寫入權限（店主、店長、目前的負責設計師）
+    assertCan(ctx.actor, 'customer:writeSensitive', resource);
     assertDesignerInStore(state, patch.ownerDesignerId, requireStore(state, customer.storeId));
   }
 
@@ -303,7 +305,8 @@ export function setSensitiveConsent(
   ctx: OpContext,
 ): CrmState {
   const customer = requireCustomer(state, customerId);
-  assertCan(ctx.actor, 'customer:update', customerResource(customer, state.stores));
+  // 同意變更會清除或開放 S 級資料，只限有 S 級寫入權限者
+  assertCan(ctx.actor, 'customer:writeSensitive', customerResource(customer, state.stores));
   if (sensitiveConsentOf(customer) === status) return state;
   const base: Customer = { ...customer, sensitiveDataConsent: status, updatedAt: ctx.now.toISOString() };
   const nextCustomer = status === 'granted' ? base : stripSensitive(base);
@@ -410,6 +413,8 @@ export function addVisit(state: CrmState, input: NewVisitInput, ctx: OpContext):
     appointments: state.appointments.map((a) =>
       a.customerId === customer.id && a.status === 'upcoming' && a.date <= visitDate ? completeAppointment(a) : a,
     ),
+    // 新服務開始新的回訪週期：上一輪的草稿（含已送出）作廢，下一輪重新起草
+    drafts: state.drafts.filter((d) => d.customerId !== customer.id),
   };
 }
 

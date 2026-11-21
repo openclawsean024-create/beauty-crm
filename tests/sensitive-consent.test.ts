@@ -15,6 +15,7 @@ import {
   decodeVault,
   encodeVault,
   loadCrmState,
+  readCrmState,
   saveCrmState,
   splitSensitive,
 } from '@/lib/local-store';
@@ -225,16 +226,17 @@ describe('AC-006 localStorage 不以明文存放 S 級欄位', () => {
     expect(decodeVault(encodeVault(vault))).toEqual(JSON.parse(JSON.stringify(vault)));
   });
 
-  it('AC-006: 保管箱損毀或遺失時，一般資料仍可載入，S 級欄位為空', () => {
+  it('AC-006: 保管箱損毀時視為讀不出來（不可當成沒有 S 級資料而在下次儲存時清掉）；遺失時一般資料仍可載入', () => {
     const storage = new MemoryStorage();
     saveCrmState(storage, seedState());
     storage.setItem(CRM_SENSITIVE_KEY, 'b64:not-valid-base64!!');
+    expect(readCrmState(storage)).toEqual({ status: 'corrupt' });
+    expect(loadCrmState(storage)).toBeUndefined();
+    storage.removeItem(CRM_SENSITIVE_KEY);
     const loaded = loadCrmState(storage)!;
     expect(loaded.customers).toHaveLength(8);
     expect(loaded.customers.every((c) => c.allergies.length === 0)).toBe(true);
     expect(loaded.effects).toEqual([]);
-    storage.removeItem(CRM_SENSITIVE_KEY);
-    expect(loadCrmState(storage)?.customers).toHaveLength(8);
     expect(decodeVault('plain text')).toEqual({ customers: {}, effects: [] });
   });
 });

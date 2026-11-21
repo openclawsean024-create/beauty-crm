@@ -60,18 +60,25 @@ export function encodeVault(vault: SensitiveVault): string {
   return VAULT_PREFIX + toBase64(JSON.stringify(vault));
 }
 
-export function decodeVault(raw: string | null | undefined): SensitiveVault {
-  const empty: SensitiveVault = { customers: {}, effects: [] };
-  if (!raw || !raw.startsWith(VAULT_PREFIX)) return empty;
+/** 解碼 S 級保管箱；沒有資料回傳空保管箱，有資料但無法解碼回傳 undefined。 */
+export function tryDecodeVault(raw: string | null | undefined): SensitiveVault | undefined {
+  if (!raw) return { customers: {}, effects: [] };
+  if (!raw.startsWith(VAULT_PREFIX)) return undefined;
   try {
     const parsed = JSON.parse(fromBase64(raw.slice(VAULT_PREFIX.length))) as Partial<SensitiveVault>;
+    if (!parsed || typeof parsed !== 'object') return undefined;
     return {
       customers: parsed.customers && typeof parsed.customers === 'object' ? parsed.customers : {},
       effects: Array.isArray(parsed.effects) ? parsed.effects : [],
     };
   } catch {
-    return empty;
+    return undefined;
   }
+}
+
+/** 與 tryDecodeVault 相同，但無法解碼時回傳空保管箱（只用於檢視，不可據以寫回）。 */
+export function decodeVault(raw: string | null | undefined): SensitiveVault {
+  return tryDecodeVault(raw) ?? { customers: {}, effects: [] };
 }
 
 /** 把 state 拆成「一般資料」與「S 級保管箱」。一般資料內不含任何 S 級欄位。 */
@@ -139,19 +146,33 @@ export function saveCrmState(storage: StorageLike | undefined, state: CrmState):
   }
 }
 
-/** 讀回 state。沒有資料、版本不符或內容損毀時回傳 undefined（由呼叫端決定是否載入示範資料）。 */
-export function loadCrmState(storage: StorageLike | undefined): CrmState | undefined {
-  if (!storage) return undefined;
+export type CrmLoadResult =
+  | { status: 'empty' }
+  | { status: 'ok'; state: CrmState }
+  /** 有資料但讀不出來（JSON 損毀、版本不符、欄位缺漏、S 級保管箱無法解碼）。呼叫端不可覆寫。 */
+  | { status: 'corrupt' };
+
+/** 讀回 state，並區分「沒有資料」與「有資料但讀不出來」。 */
+export function readCrmState(storage: StorageLike | undefined): CrmLoadResult {
+  if (!storage) return { status: 'empty' };
   try {
     const raw = storage.getItem(CRM_DATA_KEY);
-    if (!raw) return undefined;
+    if (!raw) return { status: 'empty' };
     const parsed = JSON.parse(raw) as unknown;
-    if (!isCrmStateShape(parsed)) return undefined;
+    if (!isCrmStateShape(parsed)) return { status: 'corrupt' };
+    const vault = tryDecodeVault(storage.getItem(CRM_SENSITIVE_KEY));
+    if (!vault) return { status: 'corrupt' };
     const main: CrmState = { ...parsed, recallSettings: normalizeRecallSettings(parsed.recallSettings) };
-    return mergeSensitive(main, decodeVault(storage.getItem(CRM_SENSITIVE_KEY)));
+    return { status: 'ok', state: mergeSensitive(main, vault) };
   } catch {
-    return undefined;
+    return { status: 'corrupt' };
   }
+}
+
+/** 讀回 state。沒有資料、版本不符或內容損毀時回傳 undefined。 */
+export function loadCrmState(storage: StorageLike | undefined): CrmState | undefined {
+  const result = readCrmState(storage);
+  return result.status === 'ok' ? result.state : undefined;
 }
 
 /** 清除本機全部資料：CRM 資料、S 級保管箱、語言／主題與舊版來訪紀錄。 */

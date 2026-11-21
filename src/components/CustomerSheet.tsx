@@ -171,7 +171,12 @@ export default function CustomerSheet({
           <div className="form-grid">
             <div className="field">
               <label htmlFor="customer-designer">{t(lang, 'fieldOwnerDesigner')}</label>
-              <select id="customer-designer" value={ownerDesignerId} onChange={(event) => setOwnerDesignerId(event.target.value)}>
+              <select
+                id="customer-designer"
+                value={ownerDesignerId}
+                disabled={Boolean(customer) && !canWriteSensitive}
+                onChange={(event) => setOwnerDesignerId(event.target.value)}
+              >
                 <option value="">{t(lang, 'fieldUnassigned')}</option>
                 {designers.map((d) => (
                   <option key={d.id} value={d.id}>

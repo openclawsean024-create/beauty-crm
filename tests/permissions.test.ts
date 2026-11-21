@@ -5,6 +5,7 @@ import {
   addVisit,
   deleteCustomer,
   markContacted,
+  setSensitiveConsent,
   updateCustomerProfile,
 } from '@/lib/crm-store';
 import {
@@ -204,5 +205,27 @@ describe('AC-005 crm-store 寫入動作會做權限檢查', () => {
     expect(() =>
       addCustomer(state, { id: 'c-y', name: '示範客戶 Y', phone: '0900000031', storeId: 'store-1', ownerDesignerId: 'acc-designer-c' }, ctxFor(state, 'acc-owner')),
     ).toThrow();
+  });
+
+  it('AC-005: 非負責設計師不可把客戶改成自己負責來取得 S 級資料', () => {
+    const ctxB = ctxFor(state, 'acc-designer-b');
+    expect(() => updateCustomerProfile(state, 'cust-a', { ownerDesignerId: 'acc-designer-b' }, ctxB)).toThrow(PermissionError);
+    // 負責人不變時照常可改一般欄位
+    const same = updateCustomerProfile(state, 'cust-a', { ownerDesignerId: 'acc-designer-a', notes: '示範備註' }, ctxB);
+    expect(same.customers.find((c) => c.id === 'cust-a')?.notes).toBe('示範備註');
+    expect(viewCustomer(designerB, same.customers.find((c) => c.id === 'cust-a')!, same.stores)?.sensitiveHidden).toBe(true);
+    // 負責設計師、店長、店主可以改負責人
+    for (const id of ['acc-designer-a', 'acc-manager', 'acc-owner']) {
+      const moved = updateCustomerProfile(state, 'cust-a', { ownerDesignerId: 'acc-designer-b' }, ctxFor(state, id));
+      expect(moved.customers.find((c) => c.id === 'cust-a')?.ownerDesignerId).toBe('acc-designer-b');
+    }
+  });
+
+  it('AC-006: 非負責設計師不可變更敏感個資同意（撤回會清除 S 級資料）', () => {
+    const ctxB = ctxFor(state, 'acc-designer-b');
+    expect(() => setSensitiveConsent(state, 'cust-a', 'revoked', ctxB)).toThrow(PermissionError);
+    expect(() => setSensitiveConsent(state, 'cust-f', 'granted', ctxB)).toThrow(PermissionError);
+    expect(state.customers.find((c) => c.id === 'cust-a')?.allergies.length).toBeGreaterThan(0);
+    expect(setSensitiveConsent(state, 'cust-a', 'revoked', ctxFor(state, 'acc-designer-a')).customers.find((c) => c.id === 'cust-a')?.allergies).toEqual([]);
   });
 });

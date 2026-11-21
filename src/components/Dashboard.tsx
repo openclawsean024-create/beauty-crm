@@ -89,13 +89,13 @@ function describeError(lang: Lang, err: unknown): string {
     if (err.code === 'CONSENT_REQUIRED') return t(lang, 'errConsentRequired');
     return t(lang, 'errInvalidInput');
   }
-  if (err instanceof PackageError) return t(lang, 'errInvalidInput');
+  if (err instanceof PackageError) return t(lang, 'errPackageUnavailable');
   if (err instanceof Error && /required|must|invalid|cannot/i.test(err.message)) return t(lang, 'errInvalidInput');
   return t(lang, 'errGeneric');
 }
 
 export default function Dashboard() {
-  const { crm, today, commit } = useCrmStore();
+  const { crm, today, commit, storageStatus } = useCrmStore();
   const todayIso = useMemo(() => toDateOnly(today), [today]);
 
   // 偏好設定（語言、主題）
@@ -299,8 +299,9 @@ export default function Dashboard() {
     if (!crm || !actor) return false;
     try {
       const next = op(crm, { actor, now: new Date() });
-      if (next !== crm) commit(next);
-      if (okMessage) notify(okMessage);
+      const saved = next !== crm ? commit(next) : 'saved';
+      if (saved === 'failed') notify(t(lang, 'errSaveFailed'));
+      else if (okMessage) notify(okMessage);
       return true;
     } catch (err) {
       notify(describeError(lang, err));
@@ -409,8 +410,7 @@ export default function Dashboard() {
     try {
       const { state, result } = sendReminder(crm, selected.id, lineAdapter, { actor, now: new Date() });
       if (result.ok) {
-        commit(state);
-        notify(t(lang, 'lineDryRunDone'));
+        notify(t(lang, commit(state) === 'failed' ? 'errSaveFailed' : 'lineDryRunDone'));
       } else {
         notify(t(lang, REMINDER_ERROR[result.code]));
       }
@@ -588,7 +588,7 @@ export default function Dashboard() {
     }
     clearLocalData(getBrowserStorage());
     setPersisted({});
-    commit(buildEmptyDemoState()); // 只剩店別、帳號與品項，沒有任何客戶資料
+    commit(buildEmptyDemoState(), { replaceCorrupt: true }); // 只剩店別、帳號與品項，沒有任何客戶資料
     setSelectedId(null);
     setDraftOpen(false);
     notify(t(lang, 'clearAllDone'));
@@ -599,7 +599,7 @@ export default function Dashboard() {
       notify(t(lang, 'errPermission'));
       return;
     }
-    commit(buildSeedState(today));
+    commit(buildSeedState(today), { replaceCorrupt: true });
     setSelectedId(null);
     notify(t(lang, 'reloadDemoDone'));
   };
@@ -612,7 +612,8 @@ export default function Dashboard() {
     (customerId: string, catalogItemId: string) =>
       crm
         ? summarizePackages(crm.packages, customerId, todayIso).usable.filter(
-            (p) => p.catalogItemIds.length === 0 || p.catalogItemIds.includes(catalogItemId),
+            (p) =>
+              p.startDate <= todayIso && (p.catalogItemIds.length === 0 || p.catalogItemIds.includes(catalogItemId)),
           )
         : [],
     [crm, todayIso],
@@ -701,6 +702,11 @@ export default function Dashboard() {
           <p className="demo-banner" role="note" data-testid="demo-banner">
             {t(lang, 'demoBanner')}
           </p>
+          {storageStatus === 'corrupt' ? (
+            <p className="demo-banner storage-error" role="alert" data-testid="storage-corrupt">
+              {t(lang, 'storageCorrupt')}
+            </p>
+          ) : null}
 
           {tab === 'today' ? (
             <>

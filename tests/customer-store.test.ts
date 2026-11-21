@@ -10,10 +10,12 @@ import {
   getDraft,
   markContacted,
   saveDraft,
+  sendReminder,
   updateCustomerProfile,
 } from '@/lib/crm-store';
+import { createDryRunLineAdapter } from '@/lib/line-reminder';
 import { computeKpis, normalizeCounts, weeklyRecallCounts } from '@/lib/kpi';
-import { loadCrmState, saveCrmState } from '@/lib/local-store';
+import { CRM_SENSITIVE_KEY, loadCrmState, readCrmState, saveCrmState } from '@/lib/local-store';
 import { buildRecallQueue, computeFunnel } from '@/lib/recall-queue';
 import { buildRecallDraftBody } from '@/lib/followups';
 import { FIXED_TODAY, MemoryStorage, ctxFor, seedState } from './helpers/crm-fixture';
@@ -180,6 +182,29 @@ describe('AC-003 customer-store — 客戶與服務寫入', () => {
     storage.setItem('beauty-crm:m1:data', JSON.stringify({ schemaVersion: 999, workspace: { id: 'w', name: 'w' } }));
     expect(loadCrmState(storage)).toBeUndefined();
   });
+
+  it('AC-003: readCrmState 區分「沒有資料」與「有資料但讀不出來」，保管箱損毀也算讀不出來', () => {
+    const storage = new MemoryStorage();
+    expect(readCrmState(storage)).toEqual({ status: 'empty' });
+    expect(readCrmState(undefined)).toEqual({ status: 'empty' });
+
+    storage.setItem('beauty-crm:m1:data', 'not-json{{{');
+    expect(readCrmState(storage)).toEqual({ status: 'corrupt' });
+    storage.setItem('beauty-crm:m1:data', JSON.stringify({ schemaVersion: 999, workspace: { id: 'w', name: 'w' } }));
+    expect(readCrmState(storage)).toEqual({ status: 'corrupt' });
+
+    const state = seedState();
+    saveCrmState(storage, state);
+    expect(readCrmState(storage).status).toBe('ok');
+    // S 級保管箱無法解碼時不可當成「沒有敏感資料」，否則下一次儲存會把過敏與效果紀錄清掉
+    storage.setItem(CRM_SENSITIVE_KEY, 'b64:%%%不是base64');
+    expect(readCrmState(storage)).toEqual({ status: 'corrupt' });
+    storage.setItem(CRM_SENSITIVE_KEY, 'plain text');
+    expect(readCrmState(storage)).toEqual({ status: 'corrupt' });
+    // 沒有保管箱（例如舊資料）視為沒有敏感資料，可正常讀取
+    storage.removeItem(CRM_SENSITIVE_KEY);
+    expect(readCrmState(storage).status).toBe('ok');
+  });
 });
 
 describe('AC-003 KPI 由資料計算', () => {
@@ -282,6 +307,30 @@ describe('AC-003 回流漏斗與草稿寫入', () => {
     const storage = new MemoryStorage();
     saveCrmState(storage, state);
     expect(getDraft(loadCrmState(storage)!, 'cust-a')?.body).toBe(`${body}（已調整）`);
+  });
+
+  it('AC-004/AC-003: 送出後再新增服務，上一輪草稿作廢，下一輪可重新起草、核准、送出', () => {
+    let state = seedState();
+    const ctx = ctxFor(state, 'acc-designer-a');
+    const adapter = createDryRunLineAdapter({ now: () => FIXED_TODAY });
+    state = saveDraft(state, 'cust-a', '示範客戶 A 您好（第一輪）', ctx);
+    state = approveCustomerDraft(state, 'cust-a', ctx);
+    state = sendReminder(state, 'cust-a', adapter, ctx).state;
+    expect(getDraft(state, 'cust-a')?.status).toBe('sent');
+
+    state = addVisit(
+      state,
+      { id: 't-next', customerId: 'cust-a', catalogItemId: 'svc-lash', performedAt: FIXED_TODAY.toISOString(), acknowledgeAllergyConflict: true },
+      ctx,
+    );
+    expect(getDraft(state, 'cust-a')).toBeUndefined();
+
+    state = saveDraft(state, 'cust-a', '示範客戶 A 您好（第二輪）', ctx);
+    state = approveCustomerDraft(state, 'cust-a', ctx);
+    expect(getDraft(state, 'cust-a')?.status).toBe('approved');
+    const second = sendReminder(state, 'cust-a', adapter, ctx);
+    expect(second.result.ok).toBe(true);
+    expect(getDraft(second.state, 'cust-a')).toMatchObject({ status: 'sent', body: '示範客戶 A 您好（第二輪）' });
   });
 
   it('AC-003: 未取得行銷同意的客戶不可核准草稿', () => {
