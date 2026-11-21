@@ -33,7 +33,7 @@ import { buildRecallDraftBody } from '@/lib/followups';
 import { t, tf, toggleLang, type Lang, type MessageKey } from '@/lib/i18n';
 import { computeKpis, normalizeCounts, weeklyRecallCounts } from '@/lib/kpi';
 import { createDryRunLineAdapter, type LineReminderErrorCode } from '@/lib/line-reminder';
-import { clearLocalData, getBrowserStorage } from '@/lib/local-store';
+import { clearLocalData, getBrowserStorage, readRawLocalData } from '@/lib/local-store';
 import { PackageError, summarizePackages } from '@/lib/packages';
 import { PermissionError, can, storeResource, viewCustomer, type CustomerView } from '@/lib/permissions';
 import {
@@ -301,6 +301,7 @@ export default function Dashboard() {
       const next = op(crm, { actor, now: new Date() });
       const saved = next !== crm ? commit(next) : 'saved';
       if (saved === 'failed') notify(t(lang, 'errSaveFailed'));
+      else if (saved === 'skipped') notify(t(lang, 'errNotSavedCorrupt'));
       else if (okMessage) notify(okMessage);
       return true;
     } catch (err) {
@@ -359,6 +360,24 @@ export default function Dashboard() {
     if (value.trim() && tab !== 'clients') setTab('clients');
   };
 
+  /** 損毀模式下，把裝置上原本的字串原封不動下載下來，清除前可先保留 */
+  const handleDownloadRaw = () => {
+    if (!canManageData) {
+      notify(t(lang, 'errPermission'));
+      return;
+    }
+    const raw = readRawLocalData(getBrowserStorage());
+    const blob = new Blob([JSON.stringify({ notice: '含個資：本機原始資料備份（未加密，S 級欄位為 Base64 編碼）', ...raw }, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `beauty-crm-原始資料備份-含個資-${todayIso}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExport = () => {
     if (!crm || !actor || !canManageData) {
       notify(t(lang, 'errPermission'));
@@ -410,7 +429,8 @@ export default function Dashboard() {
     try {
       const { state, result } = sendReminder(crm, selected.id, lineAdapter, { actor, now: new Date() });
       if (result.ok) {
-        notify(t(lang, commit(state) === 'failed' ? 'errSaveFailed' : 'lineDryRunDone'));
+        const saved = commit(state);
+        notify(t(lang, saved === 'failed' ? 'errSaveFailed' : saved === 'skipped' ? 'errNotSavedCorrupt' : 'lineDryRunDone'));
       } else {
         notify(t(lang, REMINDER_ERROR[result.code]));
       }
@@ -609,14 +629,13 @@ export default function Dashboard() {
     [crm],
   );
   const usablePackages = useCallback(
-    (customerId: string, catalogItemId: string) =>
+    (customerId: string, catalogItemId: string, date: string) =>
       crm
-        ? summarizePackages(crm.packages, customerId, todayIso).usable.filter(
-            (p) =>
-              p.startDate <= todayIso && (p.catalogItemIds.length === 0 || p.catalogItemIds.includes(catalogItemId)),
+        ? summarizePackages(crm.packages, customerId, date).usable.filter(
+            (p) => p.startDate <= date && (p.catalogItemIds.length === 0 || p.catalogItemIds.includes(catalogItemId)),
           )
         : [],
-    [crm, todayIso],
+    [crm],
   );
   const canSeeSensitive = useCallback(
     (customerId: string) => views.find((v) => v.customer.id === customerId)?.sensitiveHidden === false,
@@ -703,9 +722,14 @@ export default function Dashboard() {
             {t(lang, 'demoBanner')}
           </p>
           {storageStatus === 'corrupt' ? (
-            <p className="demo-banner storage-error" role="alert" data-testid="storage-corrupt">
-              {t(lang, 'storageCorrupt')}
-            </p>
+            <div className="demo-banner storage-error" role="alert" data-testid="storage-corrupt">
+              <p>{t(lang, 'storageCorrupt')}</p>
+              {canManageData ? (
+                <button type="button" className="button secondary" data-testid="download-raw" onClick={handleDownloadRaw}>
+                  {t(lang, 'downloadRawData')}
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           {tab === 'today' ? (

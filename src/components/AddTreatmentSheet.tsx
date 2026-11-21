@@ -29,7 +29,8 @@ interface AddTreatmentSheetProps {
   defaultCustomerId?: string;
   defaultDesignerId?: string;
   /** 該客戶可扣堂的套票（未過期、有剩餘、涵蓋此品項） */
-  usablePackages: (customerId: string, catalogItemId: string) => ServicePackage[];
+  /** date：服務日期（YYYY-MM-DD），依當日是否已開始、未過期篩選 */
+  usablePackages: (customerId: string, catalogItemId: string, date: string) => ServicePackage[];
   /** 品項成分與客戶過敏紀錄的衝突清單（由完整資料計算，與畫面遮罩無關） */
   findConflicts: (customerId: string, catalogItemId: string) => string[];
   /** 目前帳號是否可看這位客戶的敏感資料；不可時衝突提示不列出成分 */
@@ -100,8 +101,8 @@ export default function AddTreatmentSheet({
     [customerId, catalogItemId, findConflicts],
   );
   const packages = useMemo(
-    () => (customerId && catalogItemId ? usablePackages(customerId, catalogItemId) : []),
-    [customerId, catalogItemId, usablePackages],
+    () => (customerId && catalogItemId && date ? usablePackages(customerId, catalogItemId, date) : []),
+    [customerId, catalogItemId, date, usablePackages],
   );
   const pkg = packages[0];
 

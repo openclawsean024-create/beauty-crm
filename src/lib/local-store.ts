@@ -175,6 +175,16 @@ export function loadCrmState(storage: StorageLike | undefined): CrmState | undef
   return result.status === 'ok' ? result.state : undefined;
 }
 
+/** 讀出裝置上原本的字串（不解析），供損毀時備份。 */
+export function readRawLocalData(storage: StorageLike | undefined): { data: string | null; sensitive: string | null } {
+  if (!storage) return { data: null, sensitive: null };
+  try {
+    return { data: storage.getItem(CRM_DATA_KEY), sensitive: storage.getItem(CRM_SENSITIVE_KEY) };
+  } catch {
+    return { data: null, sensitive: null };
+  }
+}
+
 /** 清除本機全部資料：CRM 資料、S 級保管箱、語言／主題與舊版來訪紀錄。 */
 export function clearLocalData(storage: StorageLike | undefined): boolean {
   if (!storage) return true;

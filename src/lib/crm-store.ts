@@ -398,6 +398,14 @@ export function addVisit(state: CrmState, input: NewVisitInput, ctx: OpContext):
   });
 
   const visitDate = toDateOnly(new Date(treatment.performedAt));
+  const previousLatest = state.treatments
+    .filter((t) => t.customerId === customer.id)
+    .reduce<string | undefined>((latest, t) => {
+      const d = toDateOnly(new Date(t.performedAt));
+      return latest === undefined || d > latest ? d : latest;
+    }, undefined);
+  // 只有這筆是最新的服務才開始新的回訪週期；補登過去日期不影響本輪草稿
+  const startsNewCycle = previousLatest === undefined || visitDate >= previousLatest;
   let packages = state.packages;
   if (input.packageId) {
     const pkg = state.packages.find((p) => p.id === input.packageId && p.customerId === customer.id);
@@ -414,7 +422,7 @@ export function addVisit(state: CrmState, input: NewVisitInput, ctx: OpContext):
       a.customerId === customer.id && a.status === 'upcoming' && a.date <= visitDate ? completeAppointment(a) : a,
     ),
     // 新服務開始新的回訪週期：上一輪的草稿（含已送出）作廢，下一輪重新起草
-    drafts: state.drafts.filter((d) => d.customerId !== customer.id),
+    drafts: startsNewCycle ? state.drafts.filter((d) => d.customerId !== customer.id) : state.drafts,
   };
 }
 

@@ -333,6 +333,20 @@ describe('AC-003 回流漏斗與草稿寫入', () => {
     expect(getDraft(second.state, 'cust-a')).toMatchObject({ status: 'sent', body: '示範客戶 A 您好（第二輪）' });
   });
 
+  it('AC-003: 補登過去日期的服務不影響本輪草稿', () => {
+    let state = seedState();
+    const ctx = ctxFor(state, 'acc-designer-a');
+    state = saveDraft(state, 'cust-a', '示範客戶 A 您好', ctx);
+    state = approveCustomerDraft(state, 'cust-a', ctx);
+    const backdated = new Date(2025, 0, 10, 15, 0).toISOString();
+    state = addVisit(
+      state,
+      { id: 't-old', customerId: 'cust-a', catalogItemId: 'svc-lash', performedAt: backdated, acknowledgeAllergyConflict: true },
+      ctx,
+    );
+    expect(getDraft(state, 'cust-a')).toMatchObject({ status: 'approved', body: '示範客戶 A 您好' });
+  });
+
   it('AC-003: 未取得行銷同意的客戶不可核准草稿', () => {
     let state = seedState();
     const ctx = ctxFor(state, 'acc-designer-b');

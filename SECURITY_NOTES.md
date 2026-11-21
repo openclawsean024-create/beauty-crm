@@ -28,9 +28,10 @@ M1 **有**持久化，全部存在瀏覽器 localStorage：
 | 撤回敏感個資同意時立即清除 S 級資料與效果紀錄 | `crm-store.setSensitiveConsent` | 同上、`tests/e2e/consent-mask.spec.ts` |
 | 同意紀錄（時間、操作者） | `ConsentRecord` | `tests/sensitive-consent.test.ts` |
 | S 級欄位 UI 預設遮罩，需明確點擊顯示；換客戶後重新遮罩 | `CustomerMemoryPanel.tsx` | `tests/e2e/consent-mask.spec.ts` |
+| 本機資料或 S 級保管箱讀不出來時不覆寫，只有店主明確清除或重新載入示範資料才覆寫 | `local-store.readCrmState`、`useCrmStore.ts` | `tests/customer-store.test.ts`、`tests/e2e/consent-mask.spec.ts` |
 | 店主可刪除單一客戶（連同全部相關資料）、清除本機全部資料 | `crm-store.deleteCustomer`、`local-store.clearLocalData` | `tests/customer-delete.test.ts` |
 | 匯出檔標註「含個資」、未加密警告與格式版本 | `src/lib/export.ts` | `tests/sensitive-consent.test.ts`、E2E |
-| 權限矩陣：跨店拒絕、S 級只限店主／店長／負責設計師、匯出與刪除只限店主 | `src/lib/permissions.ts` | `tests/permissions.test.ts`（57 tests） |
+| 權限矩陣：跨店拒絕、S 級只限店主／店長／負責設計師、匯出與刪除只限店主；改負責設計師與變更敏感個資同意也需 S 級寫入權限 | `src/lib/permissions.ts`、`crm-store.ts` | `tests/permissions.test.ts`（59 tests） |
 | 無權限者拿到的客戶資料已清空 S 級欄位（不只是畫面隱藏） | `permissions.viewCustomer` | 同上 |
 | LINE 只有 dry-run：不讀 LINE 憑證、不連網 | `src/lib/line-reminder.ts` | `tests/line-reminder.test.ts`（mock fetch 呼叫 0 次） |
 | 只用明顯假資料；自動掃描非假號碼與非 example.com Email | `tests/fixtures-safety.test.ts` | — |
