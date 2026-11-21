@@ -2,6 +2,7 @@
 // 純函式：所有金額皆為正數（TWD 金額 magnitude）
 
 import type { Treatment } from './treatments';
+import { toDateOnly } from './dates';
 
 export interface RevenueByMonth {
   month: string; // YYYY-MM
@@ -18,8 +19,9 @@ export interface CustomerLTV {
   lastVisitAt: string | undefined;
 }
 
+/** 以本地日期取月份（與 kpi.ts 一致），避免 UTC 跨日把服務算進前一個月。 */
 function monthKey(iso: string): string {
-  return iso.slice(0, 7);
+  return toDateOnly(new Date(iso)).slice(0, 7);
 }
 
 export function computeRevenueByMonth(

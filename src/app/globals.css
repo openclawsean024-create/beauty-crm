@@ -959,6 +959,13 @@ h1 {
   font-size: 11px;
   font-weight: 750;
 }
+.demo-banner.storage-error {
+  border-color: color-mix(in srgb, var(--red) 35%, transparent);
+  color: var(--red);
+  background: var(--red-soft);
+}
+.demo-banner.storage-error { display: grid; gap: 8px; justify-items: start; }
+.demo-banner.storage-error p { margin: 0; }
 
 .stack { display: grid; gap: 16px; }
 .stack-sm { display: grid; gap: 10px; justify-items: start; }

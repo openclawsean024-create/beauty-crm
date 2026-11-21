@@ -33,7 +33,7 @@ import { buildRecallDraftBody } from '@/lib/followups';
 import { t, tf, toggleLang, type Lang, type MessageKey } from '@/lib/i18n';
 import { computeKpis, normalizeCounts, weeklyRecallCounts } from '@/lib/kpi';
 import { createDryRunLineAdapter, type LineReminderErrorCode } from '@/lib/line-reminder';
-import { clearLocalData, getBrowserStorage } from '@/lib/local-store';
+import { clearLocalData, getBrowserStorage, readRawLocalData } from '@/lib/local-store';
 import { PackageError, summarizePackages } from '@/lib/packages';
 import { PermissionError, can, storeResource, viewCustomer, type CustomerView } from '@/lib/permissions';
 import {
@@ -89,13 +89,13 @@ function describeError(lang: Lang, err: unknown): string {
     if (err.code === 'CONSENT_REQUIRED') return t(lang, 'errConsentRequired');
     return t(lang, 'errInvalidInput');
   }
-  if (err instanceof PackageError) return t(lang, 'errInvalidInput');
+  if (err instanceof PackageError) return t(lang, 'errPackageUnavailable');
   if (err instanceof Error && /required|must|invalid|cannot/i.test(err.message)) return t(lang, 'errInvalidInput');
   return t(lang, 'errGeneric');
 }
 
 export default function Dashboard() {
-  const { crm, today, commit } = useCrmStore();
+  const { crm, today, commit, storageStatus } = useCrmStore();
   const todayIso = useMemo(() => toDateOnly(today), [today]);
 
   // 偏好設定（語言、主題）
@@ -299,8 +299,10 @@ export default function Dashboard() {
     if (!crm || !actor) return false;
     try {
       const next = op(crm, { actor, now: new Date() });
-      if (next !== crm) commit(next);
-      if (okMessage) notify(okMessage);
+      const saved = next !== crm ? commit(next) : 'saved';
+      if (saved === 'failed') notify(t(lang, 'errSaveFailed'));
+      else if (saved === 'skipped') notify(t(lang, 'errNotSavedCorrupt'));
+      else if (okMessage) notify(okMessage);
       return true;
     } catch (err) {
       notify(describeError(lang, err));
@@ -358,6 +360,24 @@ export default function Dashboard() {
     if (value.trim() && tab !== 'clients') setTab('clients');
   };
 
+  /** 損毀模式下，把裝置上原本的字串原封不動下載下來，清除前可先保留 */
+  const handleDownloadRaw = () => {
+    if (!canManageData) {
+      notify(t(lang, 'errPermission'));
+      return;
+    }
+    const raw = readRawLocalData(getBrowserStorage());
+    const blob = new Blob([JSON.stringify({ notice: '含個資：本機原始資料備份（未加密，S 級欄位為 Base64 編碼）', ...raw }, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `beauty-crm-原始資料備份-含個資-${todayIso}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExport = () => {
     if (!crm || !actor || !canManageData) {
       notify(t(lang, 'errPermission'));
@@ -409,8 +429,8 @@ export default function Dashboard() {
     try {
       const { state, result } = sendReminder(crm, selected.id, lineAdapter, { actor, now: new Date() });
       if (result.ok) {
-        commit(state);
-        notify(t(lang, 'lineDryRunDone'));
+        const saved = commit(state);
+        notify(t(lang, saved === 'failed' ? 'errSaveFailed' : saved === 'skipped' ? 'errNotSavedCorrupt' : 'lineDryRunDone'));
       } else {
         notify(t(lang, REMINDER_ERROR[result.code]));
       }
@@ -588,7 +608,7 @@ export default function Dashboard() {
     }
     clearLocalData(getBrowserStorage());
     setPersisted({});
-    commit(buildEmptyDemoState()); // 只剩店別、帳號與品項，沒有任何客戶資料
+    commit(buildEmptyDemoState(), { replaceCorrupt: true }); // 只剩店別、帳號與品項，沒有任何客戶資料
     setSelectedId(null);
     setDraftOpen(false);
     notify(t(lang, 'clearAllDone'));
@@ -599,7 +619,7 @@ export default function Dashboard() {
       notify(t(lang, 'errPermission'));
       return;
     }
-    commit(buildSeedState(today));
+    commit(buildSeedState(today), { replaceCorrupt: true });
     setSelectedId(null);
     notify(t(lang, 'reloadDemoDone'));
   };
@@ -609,13 +629,13 @@ export default function Dashboard() {
     [crm],
   );
   const usablePackages = useCallback(
-    (customerId: string, catalogItemId: string) =>
+    (customerId: string, catalogItemId: string, date: string) =>
       crm
-        ? summarizePackages(crm.packages, customerId, todayIso).usable.filter(
-            (p) => p.catalogItemIds.length === 0 || p.catalogItemIds.includes(catalogItemId),
+        ? summarizePackages(crm.packages, customerId, date).usable.filter(
+            (p) => p.startDate <= date && (p.catalogItemIds.length === 0 || p.catalogItemIds.includes(catalogItemId)),
           )
         : [],
-    [crm, todayIso],
+    [crm],
   );
   const canSeeSensitive = useCallback(
     (customerId: string) => views.find((v) => v.customer.id === customerId)?.sensitiveHidden === false,
@@ -701,6 +721,16 @@ export default function Dashboard() {
           <p className="demo-banner" role="note" data-testid="demo-banner">
             {t(lang, 'demoBanner')}
           </p>
+          {storageStatus === 'corrupt' ? (
+            <div className="demo-banner storage-error" role="alert" data-testid="storage-corrupt">
+              <p>{t(lang, 'storageCorrupt')}</p>
+              {canManageData ? (
+                <button type="button" className="button secondary" data-testid="download-raw" onClick={handleDownloadRaw}>
+                  {t(lang, 'downloadRawData')}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           {tab === 'today' ? (
             <>

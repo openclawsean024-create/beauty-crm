@@ -63,4 +63,27 @@ test.describe('AC-005 身分與店別切換', () => {
     await expect(page.getByTestId('recall-days-hair')).toBeDisabled();
     await expect(page.getByTestId('settings-export')).toHaveCount(0);
   });
+
+  test('AC-005: 非負責設計師不能改負責設計師，也看不到敏感個資同意按鈕', async ({ page }) => {
+    await switchAccount(page, 'acc-designer-b');
+    // cust-f 的敏感個資同意為 pending，負責設計師是 A
+    await goToTab(page, 'clients');
+    await customerRow(page, 'cust-f').getByRole('button').click();
+    await expect(page.getByTestId('consent-sensitive')).toHaveAttribute('data-status', 'pending');
+    await expect(page.getByTestId('sensitive-grant')).toHaveCount(0);
+    await goToTab(page, 'today');
+    await queueRow(page, 'cust-a').click();
+    await page.getByTestId('edit-customer').click();
+    await expect(page.locator('#customer-designer')).toBeDisabled();
+    await page.keyboard.press('Escape');
+
+    await switchAccount(page, 'acc-designer-a');
+    await queueRow(page, 'cust-a').click();
+    await page.getByTestId('edit-customer').click();
+    await expect(page.locator('#customer-designer')).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await goToTab(page, 'clients');
+    await customerRow(page, 'cust-f').getByRole('button').click();
+    await expect(page.getByTestId('sensitive-grant')).toBeVisible();
+  });
 });

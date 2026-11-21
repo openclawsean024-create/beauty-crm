@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { computeRevenueByMonth, computeCustomerLTV, computeAllLTV, topSpenders } from '@/lib/analytics';
 import { recordTreatment } from '@/lib/treatments';
 
@@ -23,6 +23,17 @@ describe('analytics — 消費分析', () => {
     expect(rev).toHaveLength(2);
     expect(rev[0]).toEqual({ month: '2026-06', total: 2500, count: 2 });
     expect(rev[1]).toEqual({ month: '2026-07', total: 800, count: 1 });
+  });
+
+  it('AC: computeRevenueByMonth 以本地日期分月（台北凌晨記的服務不會算進前一個月）', () => {
+    vi.stubEnv('TZ', 'Asia/Taipei');
+    try {
+      // 台北 12/1 07:30 = UTC 11/30 23:30
+      const rev = computeRevenueByMonth([recordTreatment({ ...base, id: 't1', performedAt: '2026-11-30T23:30:00Z', price: 900 })]);
+      expect(rev).toEqual([{ month: '2026-12', total: 900, count: 1 }]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it('AC: computeCustomerLTV 正確累計 totalSpent + 平均客單', () => {

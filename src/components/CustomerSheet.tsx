@@ -78,7 +78,8 @@ export default function CustomerSheet({
     setPreferences((customer?.preferences ?? []).join('、'));
     setTags((customer?.tags ?? []).join('、'));
     setNotes(customer?.notes ?? '');
-    setOwnerDesignerId(customer?.ownerDesignerId ?? defaultDesignerId ?? '');
+    // 編輯時保留原本的負責人（含未指派）；只有新增客戶才預設為目前的設計師
+    setOwnerDesignerId(customer ? customer.ownerDesignerId ?? '' : defaultDesignerId ?? '');
     setMarketing(customer?.consent ?? 'pending');
     setSensitiveGranted(customer ? sensitiveConsentOf(customer) === 'granted' : false);
     setAllergies((customer?.allergies ?? []).join('、'));
@@ -171,7 +172,12 @@ export default function CustomerSheet({
           <div className="form-grid">
             <div className="field">
               <label htmlFor="customer-designer">{t(lang, 'fieldOwnerDesigner')}</label>
-              <select id="customer-designer" value={ownerDesignerId} onChange={(event) => setOwnerDesignerId(event.target.value)}>
+              <select
+                id="customer-designer"
+                value={ownerDesignerId}
+                disabled={Boolean(customer) && !canWriteSensitive}
+                onChange={(event) => setOwnerDesignerId(event.target.value)}
+              >
                 <option value="">{t(lang, 'fieldUnassigned')}</option>
                 {designers.map((d) => (
                   <option key={d.id} value={d.id}>

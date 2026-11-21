@@ -149,3 +149,23 @@ test.describe('AC-004 LINE dry-run（UI）', () => {
     await expect(page.getByTestId('line-dry-run')).toHaveCount(0);
   });
 });
+
+test.describe('AC-003 本機資料損毀時不覆寫', () => {
+  test('AC-003: 資料讀不出來時顯示警告、不覆寫；店主重新載入示範資料後恢復', async ({ page }) => {
+    await openApp(page);
+    const broken = '{"schemaVersion":1,"workspace":'; // 只寫了一半的 JSON
+    await page.evaluate((raw) => window.localStorage.setItem('beauty-crm:m1:data', raw), broken);
+    await page.reload();
+    await expect(page.getByTestId('storage-corrupt')).toBeVisible();
+    await queueRow(page, 'cust-a').click();
+    await page.getByTestId('mark-contacted').click();
+    expect(await page.evaluate(() => window.localStorage.getItem('beauty-crm:m1:data'))).toBe(broken);
+
+    await goToTab(page, 'settings');
+    await page.getByTestId('reload-demo').click();
+    await expect(page.getByTestId('storage-corrupt')).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId('storage-corrupt')).toHaveCount(0);
+    await expect(queueRow(page, 'cust-a')).toBeVisible();
+  });
+});
